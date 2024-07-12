@@ -16,6 +16,7 @@ arts_sf_subset3 <- arts_sf[arts_sf$RegionName == "Hot Weather Creek, Ellesmere, 
 ggplot(data = arts_sf_subset3, aes(fill = TrainClass)) + 
   geom_sf(col = "white") + 
   coord_sf(datum = NULL)
+summary(arts_sf_subset3)
 
 
   #divide by TrainClass
@@ -25,3 +26,19 @@ ggplot(data = arts_sf_subset1) +
   coord_sf(datum = NULL) 
 
 #adding basemap?
+
+install.packages(c("sp", "MASS", "reshape2","geojsonio","rgdal","downloader","maptools","dplyr","broom","stplanr", "ggplot2", "leaflet"))
+library(tidyverse)
+library(sp)
+library(MASS)
+library(reshape2)
+library(geojsonio)
+library(rgdal)
+library(downloader)
+library(maptools)
+library(broom) 
+library(stplanr)
+library(leaflet)
+library(sf)
+library(tmap)
+
