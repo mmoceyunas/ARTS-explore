@@ -1,0 +1,109 @@
+---
+title: "Countries Map with Arctic Circle for Margo"
+author: "Heidi Rodenhizer"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Load Packages
+
+```{r}
+library(sf)
+library(spData)
+library(tidyverse)
+library(dplyr)
+library(conflicted)
+```
+
+# Load Data
+
+```{r}
+crop_poly = tibble(geometry = st_sfc(st_point(c(0, 90)), # start by making a point at the North pole
+                                      crs = 'EPSG:4326')) %>% # can specify the coordinate system as a string with the prefix 'EPSG:'
+  st_sf() %>%
+  st_transform(crs = 3413) %>% # transform it to a polar coordinate system (you can specify the crs with the numerical EPSG code)
+  st_buffer(dist = 3909167) %>% # buffer the point to make a circle (approximately down to 50 N, if I recall correctly)
+  smoothr::densify(n = 3) %>% # make sure that there are enough coordinates in the circle to handle the reprojection back to WGS 84
+  st_transform(crs = 'EPSG:4326') # reproject back to WGS 84
+
+arctic_circle = tibble(lon = c(-180,180),
+                    lat = c(66, 66)) %>% # create a line in WGS 84 at 66N
+  st_as_sf(coords = c("lon","lat"),
+           crs = "EPSG:4326") %>%
+  summarise(geometry = st_combine(geometry)) %>%
+  st_cast("LINESTRING") %>% 
+  smoothr::densify(max_distance = 1) # add lots of points so that it can handle being displayed in a polar coordinate system - otherwise it won't follow the curve of the Earth
+
+world_north = world %>% # dataset included in spData
+  st_intersection(crop_poly) %>% # crop it to the circle we created earlier
+  st_transform(crs = 3413) %>% # convert to a polar coordinate system
+  select(name_long, continent, region_un, subregion)
+
+world_north$geom[4] = st_buffer(world_north$geom[4], 0.25) # necessary to remove the line through Siberia at 180/-180
+
+world_north = world_north %>%
+  st_union(by_feature = TRUE) # necessary to remove the line through Siberia at 180/-180
+```
+
+If you want nice lat and lon lines in the background, this can build them
+
+```{r}
+long_lines_from_coords = function(lon, lat_min, lat_max) {
+  line = expand_grid(lon = lon,
+                      lat = c(lat_min, lat_max)) %>%
+    st_as_sf(coords = c("lon","lat"),
+             crs = "EPSG:4326") %>%
+    summarise(geometry = st_combine(geometry)) %>%
+    st_cast("LINESTRING") %>% 
+    smoothr::densify(max_distance = 1) %>%
+    mutate(label = lon)
+  
+  return(line)
+}
+
+long_lines = seq(-180, 180, by = 60) %>%
+  map(~ long_lines_from_coords(.x, lat_min = 55, lat_max = 90)) %>%
+  bind_rows()
+
+lat_lines_from_coords = function(lat, lon_min, lon_max) {
+  line = expand_grid(lon = c(lon_min, lon_max),
+                      lat = lat) %>%
+    st_as_sf(coords = c("lon","lat"),
+             crs = "EPSG:4326") %>%
+    summarise(geometry = st_combine(geometry)) %>%
+    st_cast("LINESTRING") %>% 
+    smoothr::densify(max_distance = 1) %>%
+    mutate(label = lat)
+  
+  return(line)
+}
+
+lat_lines = seq(60, 90, by = 10) %>%
+  map(~ lat_lines_from_coords(.x, lon_min = -180, lon_max = 180)) %>%
+  bind_rows()
+```
+
+```{r}
+site_map = ggplot(world_north) + # countries
+  geom_sf(data = long_lines,
+          color = 'gray90',
+          linewidth = 0.25) +
+  geom_sf(data = lat_lines,
+          color = 'gray90',
+          linewidth = 0.25) +
+  geom_sf(data = crop_poly, # light gray background
+          color = 'transparent',
+          fill = 'gray90',
+          alpha = 0.5) +
+  geom_sf(color = 'black', 
+          fill = 'gray80') +
+  geom_sf(data = arctic_circle, 
+          color = 'gray50',
+          linetype = 'dashed',
+          linewidth = 0.25,
+          inherit.aes = FALSE) +
+  theme_void() # if you want to remove the bounding box - I also like `theme_bw()` as a more standard theme
+
+site_map
+```
+
