@@ -5,7 +5,6 @@
 .Ruserdata
 #dataset
 ARTS_main_dataset.geojson
-arts_autocorrelation.Rmd
 #R environment file
 .Renviron
 #R package files
@@ -27,3 +26,4 @@ vignettes/.pdf
 # RStudio auto-generated html
 /.html
 # End of R.gitignore template
+arts_autocorrelation.Rmd
