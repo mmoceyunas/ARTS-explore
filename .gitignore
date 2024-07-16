@@ -3,36 +3,27 @@
 .Rhistory
 .RData
 .Ruserdata
-
 #dataset
 ARTS_main_dataset.geojson
-
+arts_autocorrelation.Rmd
 #R environment file
 .Renviron
-
 #R package files
 .tar.gz
 .Rcheck/
-
 # R Markdown and knitr
 _cache/
 .utf8.md
 .knit.md
-
 # Example code in package build process
 -Ex.R
-
 # Produced vignettes
 vignettes/.html
 vignettes/.pdf
-
 # Shiny application directory
 .shinyapp/
-
 # RStudio logs
 /logs/
-
 # RStudio auto-generated html
 /.html
-
 # End of R.gitignore template
