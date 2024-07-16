@@ -1,0 +1,38 @@
+---
+title: "autocorrelation_nitze"
+author: "Margo Moceyunas"
+date: "2024-07-16"
+output: html_document
+---
+## Load library and dataset
+```{r}
+library(sf)
+library(ggplot2)
+library(tidyverse)
+nitze_sf <- st_read("nitze_image_bounding_boxes/nitzeTrainingLabel2023_Negative_meta3.shp")
+arts_sf = st_read("arts_pc_v.1.0.0.geojson")
+```
+
+## Set up 
+```{r make valid}
+st_make_valid(arts_sf)
+sf::st_is_valid(arts_sf)
+```
+```{r convert to points}
+arts_points = arts_sf |>
+    mutate(
+        centroid_geometry = map2(
+            as.numeric(CentroidLon),
+            as.numeric(CentroidLat),
+            ~ st_point(c(.x, .y))
+            ) |>
+            st_sfc(crs = 4326) |> # because the centroid points are reported in wgs 84
+            st_transform(crs = 3413) # assuming you want the output to match the CRS of ARTS as a whole
+        )
+```
+
+```{r intersection}
+arts_nitze <- st_intersection(arts_points, nitze_sf)
+ggplot() + geom_sf(data = arts_nitze)
+ggplot() + geom_sf(data = nitze_sf)
+```

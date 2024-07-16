@@ -28,3 +28,4 @@ vignettes/.pdf
 # End of R.gitignore template
 .DS_Store
 arts_autocorrelation.Rmd
+arts_pc_v.1.0.0.geojson
