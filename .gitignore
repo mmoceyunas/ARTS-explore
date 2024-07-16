@@ -26,4 +26,5 @@ vignettes/.pdf
 # RStudio auto-generated html
 /.html
 # End of R.gitignore template
+.DS_Store
 arts_autocorrelation.Rmd
