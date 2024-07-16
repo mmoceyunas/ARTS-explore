@@ -1,0 +1,24 @@
+---
+title: "arts_autocorrelation"
+author: "Margo Moceyunas"
+date: "2024-07-16"
+output: html_document
+---
+## Packages
+```{r}
+library(sf)
+library(spatstat)
+arts_sf = st_read("ARTS_main_dataset.geojson")
+st_crs(arts_sf)
+arts_sf
+```
+
+## Convert sf to a ppp object
+
+```{r}
+
+```
+
+## Density or distance?
+# Quadrat Counts function and kernel density analysis
+# Diggle's empty space F-function, nearest neighbor distance G-function, Ripley's K function

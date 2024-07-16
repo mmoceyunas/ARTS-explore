@@ -27,7 +27,7 @@ ggplot(data = arts_sf_subset3, aes(fill = TrainClass)) +
 summary(arts_sf_subset3)
 
 
-  #divide by TrainClass
+#divide by TrainClass
 arts_sf_subset2 <- arts_sf[arts_sf$TrainClass == "Positive", ]
 ggplot(data = arts_sf_subset1) + 
   geom_sf(col = "white") + 
@@ -46,10 +46,21 @@ tm_shape(arts_sf_subset1) + tm_polygons(style="equal", border.col = "grey80", lw
   tm_legend(outside = TRUE, text.size = .8)  +
   tm_layout(frame = FALSE)
 
+library(tidyverse)
+library(here)
+library(magrittr)
+library(sf)
+library(tmap)
+library(janitor)
+library(RColorBrewer)
+library(spatstat)
+library(raster)
+library(rosm)
+library(dbscan)
+library(leaflet)
 library(spdep)
-xy <- st_centroid(arts_sf_subset1) #defining neighboring based on distances to polygon centers
-s.dist <- dnearneigh(xy, 0, 1000) #define search radius
+
+xy <- st_centroid(arts_sf)
+s.dist <- dnearneigh(xy, 0, 500)
 s.dist[[1]] |> length()
-lw <- nb2listw(s.dist, style = "W", zero.policy = T) #computing weights
-lw$weights[[1]]
-MC <- moran.mc(arts_sf_subset1, lw, nsim = 599, zero.policy = T)
+annulus1 <- arts_sf[s.dist[[1]], "MergedRTS"] 
