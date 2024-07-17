@@ -8,32 +8,100 @@ output: html_document
 ```{r}
 library(sf)
 library(ggplot2)
-library(tidyverse)
 library(spatstat)
-nitze_sf <- st_read("nitze_image_bounding_boxes/nitzeTrainingLabel2023_Negative_meta3.shp")
-arts_sf = st_read("arts_pc_v.1.0.0.geojson")
+library(nngeo)
+library(tidyverse) # I always load this last, because my assumption is that I want to make sure that the tidyverse version of functions with conflicts is the default one, since I use the tidyverse so much
+```
+
+```{r}
+nitze_sf <- st_read("../ARTS_supporting_files/nitze_negative_data_splitting/nitzeTrainingLabel2023_Negative_meta3.shp")
+arts_sf = st_read("../rts_rep_analysis/pca/arts_pc_v.1.0.0.geojson")
 ```
 
 ## Set up 
 ```{r make valid}
-st_make_valid(arts_sf)
-sf::st_is_valid(arts_sf)
+if (!all(st_is_valid(arts_sf))) {
+  arts_sf = st_make_valid(arts_sf)
+}
+```
+
+Simplify the many overlapping polygons in the Nitze BBox dataset
+```{r}
+nitze_simple = nitze_sf |>
+  st_remove_holes() |>
+  st_union() |>
+  st_cast('POLYGON') |>
+  st_as_sf()
+```
+
+```{r}
+ggplot() + 
+  geom_sf(data = nitze_sf, 
+          color = 'red',
+          fill = 'transparent',
+          linewidth = 0.2) +
+  geom_sf(data = nitze_simple, 
+          color = 'black',
+          fill = 'transparent',
+          linewidth = 0.2)
+
+ggplot() + 
+  geom_sf(data = nitze_sf, 
+          color = 'red',
+          fill = 'transparent',
+          linewidth = 0.2) +
+  geom_sf(data = nitze_simple, 
+          color = 'black',
+          fill = 'transparent',
+          linewidth = 0.2) +
+  # coord_sf(datum = 3413) # used this to figure out the limits for the zoom below, because ggplot automatically displays lat and lon lines even when the crs of the input data uses a non-degree unit
+  coord_sf(
+    xlim = c(-2.8e+06, -2e+06), # zoom limits given in units of crs of data
+    ylim = c(-5e+05, 1e+06)
+  )
 ```
 
 ```{r intersection}
-map_lgl(
-  st_intersects(arts_sf, nitze_sf, sparse = TRUE),
-  ~ length(.x) > 0
-)
 arts_nitze = arts_sf |>
-  filter( # subset rows using a vector of logical values, i.e. c(TRUE, FALSE, ...)
-    map_lgl( # this performs the same function (second argument, after the '~') for each element in a list/vector
-      st_intersects(arts_sf, nitze_sf, sparse = TRUE), # this returns a list (same length as nrow(arts)) of the intersections between each row of ARTS and the entire bbox datset
-      ~ length(.x) > 0 # checks if there is an intersection for a particular row of ARTS by checking the length of the output
+  filter(
+    map_lgl(
+      st_intersects(arts_sf, nitze_simple, sparse = TRUE), 
+      ~ length(.x) > 0
     )
   )
-ggplot() + geom_sf(data = arts_nitze) + geom_sf(data = nitze_sf)
-ggplot() + geom_sf(data = arts_nitze)
+```
+
+```{r}
+ggplot() + 
+  geom_sf(data = nitze_simple,
+          aes(color = 'Nitze BBoxes',
+              fill = 'Nitze BBoxes')) + 
+  geom_sf(data = arts_nitze, 
+           aes(color = 'ARTS',
+               fill = 'ARTS'),
+          size = 0.2) +
+  scale_color_manual(name = 'Dataset',
+                     values = c('red', 'black')) +
+  scale_fill_manual(name = 'Dataset',
+                     values = c('transparent', 'transparent')) +
+  theme(legend.position = 'bottom')
+
+ggplot() + 
+  geom_sf(data = nitze_simple,
+          aes(color = 'Nitze BBoxes',
+              fill = 'Nitze BBoxes')) + 
+  geom_sf(data = arts_nitze, 
+           aes(color = 'ARTS',
+               fill = 'ARTS'),
+          size = 0.2) +
+  scale_color_manual(name = 'Dataset',
+                     values = c('red', 'black')) +
+  scale_fill_manual(name = 'Dataset',
+                     values = c('transparent', 'transparent')) +
+  coord_sf(
+    xlim = c(-2.8e+06, -2e+06), # zoom limits given in units of crs of data
+    ylim = c(-5e+05, 1e+06)
+  )
 ```
 
 ```{r convert to points}
