@@ -8,47 +8,172 @@ output: html_document
 ```{r}
 library(sf)
 library(ggplot2)
-library(tidyverse)
 library(spatstat)
-nitze_sf <- st_read("nitze_image_bounding_boxes/nitzeTrainingLabel2023_Negative_meta3.shp")
-arts_sf = st_read("arts_pc_v.1.0.0.geojson")
+library(nngeo)
+library(tidyverse) # I always load this last, because my assumption is that I want to make sure that the tidyverse version of functions with conflicts is the default one, since I use the tidyverse so much
+```
+
+```{r}
+nitze_sf <- st_read("../ARTS_supporting_files/nitze_negative_data_splitting/nitzeTrainingLabel2023_Negative_meta3.shp")
+arts_sf = st_read("../rts_rep_analysis/pca/arts_pc_v.1.0.0.geojson")
 ```
 
 ## Set up 
 ```{r make valid}
-st_make_valid(arts_sf)
-sf::st_is_valid(arts_sf)
+if (!all(st_is_valid(arts_sf))) {
+  arts_sf = st_make_valid(arts_sf)
+}
+```
+
+Simplify the many overlapping polygons in the Nitze BBox dataset
+```{r}
+nitze_bboxes = nitze_sf |>
+  st_remove_holes() |>
+  st_union() |>
+  st_as_sf() |>
+  rename(geometry = x)
+
+nitze_bbox_2 = nitze_sf |>
+  st_remove_holes() |>
+  st_union() |>
+  st_cast('POLYGON') |>
+  st_as_sf() |>
+  rename(geometry = x)|>
+  slice(2)
+```
+
+```{r}
+ggplot() + 
+  geom_sf(data = nitze_sf, 
+          color = 'red',
+          fill = 'transparent',
+          linewidth = 0.2) +
+  geom_sf(data = nitze_bboxes, 
+          color = 'black',
+          fill = 'transparent',
+          linewidth = 0.2)
+
+ggplot() + 
+  geom_sf(data = nitze_sf, 
+          color = 'red',
+          fill = 'transparent',
+          linewidth = 0.2) +
+  geom_sf(data = nitze_bboxes, 
+          color = 'black',
+          fill = 'transparent',
+          linewidth = 0.2) +
+  # coord_sf(datum = 3413) # used this to figure out the limits for the zoom below, because ggplot automatically displays lat and lon lines even when the crs of the input data uses a non-degree unit
+  coord_sf(
+    xlim = c(-2.8e+06, -2e+06), # zoom limits given in units of crs of data
+    ylim = c(-5e+05, 1e+06)
+  )
 ```
 ```{r intersection}
-arts_nitze_sf = arts_sf |>
-  filter( # subset rows using a vector of logical values, i.e. c(TRUE, FALSE, ...)
-    map_lgl( # this performs the same function (second argument, after the '~') for each element in a list/vector
-      st_intersects(arts_sf, nitze_sf, sparse = TRUE), # this returns a list (same length as nrow(arts)) of the intersections between each row of ARTS and the entire bbox datset
-      ~ length(.x) > 0 # checks if there is an intersection for a particular row of ARTS by checking the length of the output
+arts_nitze = arts_sf |>
+  filter(
+    map_lgl(
+      st_intersects(arts_sf, nitze_bboxes, sparse = TRUE), 
+      ~ length(.x) > 0
     )
   )
-ggplot() + geom_sf(data = arts_nitze) + geom_sf(data = nitze_sf)
-ggplot() + geom_sf(data = arts_nitze)
+
+arts_nitze_2 = arts_sf |>
+  filter(
+    map_lgl(
+      st_intersects(arts_sf, nitze_bbox_2, sparse = TRUE), 
+      ~ length(.x) > 0
+    )
+  )
+```
+
+```{r}
+ggplot() + 
+  geom_sf(data = nitze_bboxes,
+          aes(color = 'Nitze BBoxes',
+              fill = 'Nitze BBoxes')) + 
+  geom_sf(data = arts_nitze, 
+           aes(color = 'ARTS',
+               fill = 'ARTS'),
+          size = 0.2) +
+  scale_color_manual(name = 'Dataset',
+                     values = c('red', 'black')) +
+  scale_fill_manual(name = 'Dataset',
+                     values = c('transparent', 'transparent')) +
+  theme(legend.position = 'bottom')
+
+ggplot() + 
+  geom_sf(data = nitze_bboxes,
+          aes(color = 'Nitze BBoxes',
+              fill = 'Nitze BBoxes')) + 
+  geom_sf(data = arts_nitze, 
+           aes(color = 'ARTS',
+               fill = 'ARTS'),
+          size = 0.2) +
+  scale_color_manual(name = 'Dataset',
+                     values = c('red', 'black')) +
+  scale_fill_manual(name = 'Dataset',
+                     values = c('transparent', 'transparent')) +
+  coord_sf(
+    xlim = c(-2.8e+06, -2e+06), # zoom limits given in units of crs of data
+    ylim = c(-5e+05, 1e+06)
+  )
+
+ggplot() + 
+  geom_sf(data = nitze_bbox_2,
+          aes(color = 'Nitze BBoxes',
+              fill = 'Nitze BBoxes')) + 
+  geom_sf(data = arts_nitze_2, 
+           aes(color = 'ARTS',
+               fill = 'ARTS'),
+          size = 0.2) +
+  scale_color_manual(name = 'Dataset',
+                     values = c('red', 'black')) +
+  scale_fill_manual(name = 'Dataset',
+                     values = c('transparent', 'transparent')) +
+  theme(legend.position = 'bottom')
+
 ```
 
 ```{r convert to points}
-arts_nitze_w_pts = arts_nitze_sf |>
+arts_nitze_centroids = arts_nitze |>
+  st_drop_geometry() |>
     mutate(
-        centroid_geometry = map2(
+        geometry = map2(
             as.numeric(CentroidLon),
             as.numeric(CentroidLat),
             ~ st_point(c(.x, .y))
             ) |>
             st_sfc(crs = 4326) |> # because the centroid points are reported in wgs 84
             st_transform(crs = 3413) # assuming you want the output to match the CRS of ARTS as a whole
-        )
+        ) |>
+  st_as_sf(crs = 3413) |>
+  select(geometry)
+  # select(UID) # ppp uses one column of the dataframe as labels ("marks"), and this column can be used to link back to the original dataset, if necessary
+
+arts_nitze_centroids_2 = arts_nitze_2 |>
+  st_drop_geometry() |>
+    mutate(
+        geometry = map2(
+            as.numeric(CentroidLon),
+            as.numeric(CentroidLat),
+            ~ st_point(c(.x, .y))
+            ) |>
+            st_sfc(crs = 4326) |> # because the centroid points are reported in wgs 84
+            st_transform(crs = 3413) # assuming you want the output to match the CRS of ARTS as a whole
+        ) |>
+  st_as_sf(crs = 3413) |>
+  select(geometry)
+  # select(UID) # ppp uses one column of the dataframe as labels ("marks"), and this column can be used to link back to the original dataset, if necessary
 ```
 
 ```{r create centroids and ppp}
-centroids_sf <- arts_nitze_w_pts$centroid_geometry
-centroids_sf <- as.data.frame(centroids_sf)
-centroids_sf
-centroids_ppp <- as.ppp(centroids_sf$geometry)
+centroids_ppp = nitze_bboxes |>
+  rbind(arts_nitze_centroids) |> # add Nitze bboxes as first row prior to conversion to ppp so that it will be taken as the window for further analyses
+  as.ppp()
+
+centroids_ppp_2 = nitze_bbox_2 |>
+  rbind(arts_nitze_centroids_2) |> # add Nitze bboxes as first row prior to conversion to ppp so that it will be taken as the window for further analyses
+  as.ppp()
 ```
 
 ## Average nearest neighbor
@@ -58,36 +183,42 @@ mean(nndist(centroids_ppp, k=2))
 ```
 
 ```{r ann vs neighbor order plot}
-ANN <- apply(nndist(centroids_ppp, k=1:7257),2,FUN=mean)
-plot(ANN ~ eval(1:7257), type="b", main=NULL, las=1)
+ANN <- apply(nndist(centroids_ppp, k=1:100),2,FUN=mean)
+plot(ANN ~ eval(1:100), type="b", main=NULL, las=1)
 ```
+
 ## Hypothesis Test
 ```{r assuming uniform point density across the nitze region}
 ann.p <- mean(nndist(centroids_ppp, k=1))
 ann.p
+
+ann.p_2 <- mean(nndist(centroids_ppp_2, k=1))
+ann.p_2
 ```
 
+<<<<<<< HEAD
 ```{r convert nitze_sf to owin polygon layer of boundaries?}
 nitze_owin <- as.owin(nitze_sf)
 class(nitze_owin)
 plot(nitze_owin)
 ```
 
+=======
+>>>>>>> de1e0f0cd4a5982ca6c9d4de1ef30f81e6cf4c7c
 ```{r null model}
-n     <- 1L               # Number of simulations
+n = 1000       # Number of simulations
 ann.r <- vector(length = n) # Create an empty object to be used to store simulated ANN values
 for (i in 1:n){
-  rand.p   <- rpoint(n=centroids_ppp$n, win=nitze_owin)  # Generate random point locations
+  rand.p  <- rpoint(n = centroids_ppp_2$n, win = centroids_ppp_2)  # Generate random point locations
   ann.r[i] <- mean(nndist(rand.p, k=1))  # Tally the ANN values
 }
-plot(rand.p, pch=16, main=NULL, cols=rgb(0,0,0,0.5))
 ```
 
-## Slice Nitze - Polygon 1
-```{r slice nitze}
-p1_sf <- slice(nitze_sf, 1)
-p1_sf
+```{r}
+hist(ann.r, main=NULL, las=1, breaks=40, col="bisque", xlim=range(ann.p, ann.r))
+abline(v=ann.p, col="blue")
 
+<<<<<<< HEAD
 #intersection
 arts_p1_sf = arts_sf |>
   filter(
@@ -232,3 +363,11 @@ N.greater <- sum(ann.r > ann.p)
 p <- min(N.greater + 1, n + 1 - N.greater) / (n +1)
 p
 ```
+=======
+N.greater <- sum(ann.r > ann.p)
+
+p <- min(N.greater + 1, n + 1 - N.greater) / (n +1)
+p
+```
+
+>>>>>>> de1e0f0cd4a5982ca6c9d4de1ef30f81e6cf4c7c
