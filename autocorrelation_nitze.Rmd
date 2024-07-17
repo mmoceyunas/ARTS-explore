@@ -68,7 +68,6 @@ ggplot() +
     ylim = c(-5e+05, 1e+06)
   )
 ```
-
 ```{r intersection}
 arts_nitze = arts_sf |>
   filter(
@@ -134,7 +133,6 @@ ggplot() +
   theme(legend.position = 'bottom')
 
 ```
-
 ```{r convert to points}
 arts_nitze_centroids = arts_nitze |>
   st_drop_geometry() |>
@@ -166,7 +164,6 @@ arts_nitze_centroids_2 = arts_nitze_2 |>
   select(geometry)
   # select(UID) # ppp uses one column of the dataframe as labels ("marks"), and this column can be used to link back to the original dataset, if necessary
 ```
-
 ```{r create centroids and ppp}
 centroids_ppp = nitze_bboxes |>
   rbind(arts_nitze_centroids) |> # add Nitze bboxes as first row prior to conversion to ppp so that it will be taken as the window for further analyses
@@ -182,7 +179,6 @@ centroids_ppp_2 = nitze_bbox_2 |>
 mean(nndist(centroids_ppp, k=1))
 mean(nndist(centroids_ppp, k=2))
 ```
-
 ```{r ann vs neighbor order plot}
 ANN <- apply(nndist(centroids_ppp, k=1:100),2,FUN=mean)
 plot(ANN ~ eval(1:100), type="b", main=NULL, las=1)
