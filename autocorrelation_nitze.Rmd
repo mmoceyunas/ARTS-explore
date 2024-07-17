@@ -19,13 +19,8 @@ arts_sf = st_read("arts_pc_v.1.0.0.geojson")
 st_make_valid(arts_sf)
 sf::st_is_valid(arts_sf)
 ```
-
 ```{r intersection}
-map_lgl(
-  st_intersects(arts_sf, nitze_sf, sparse = TRUE),
-  ~ length(.x) > 0
-)
-arts_nitze = arts_sf |>
+arts_nitze_sf = arts_sf |>
   filter( # subset rows using a vector of logical values, i.e. c(TRUE, FALSE, ...)
     map_lgl( # this performs the same function (second argument, after the '~') for each element in a list/vector
       st_intersects(arts_sf, nitze_sf, sparse = TRUE), # this returns a list (same length as nrow(arts)) of the intersections between each row of ARTS and the entire bbox datset
@@ -35,9 +30,8 @@ arts_nitze = arts_sf |>
 ggplot() + geom_sf(data = arts_nitze) + geom_sf(data = nitze_sf)
 ggplot() + geom_sf(data = arts_nitze)
 ```
-
 ```{r convert to points}
-arts_nitze_w_points = arts_nitze |>
+arts_nitze_w_pts = arts_nitze_sf |>
     mutate(
         centroid_geometry = map2(
             as.numeric(CentroidLon),
@@ -48,12 +42,11 @@ arts_nitze_w_points = arts_nitze |>
             st_transform(crs = 3413) # assuming you want the output to match the CRS of ARTS as a whole
         )
 ```
-
 ```{r create centroids and ppp}
-centroids_sf <- arts_nitze_w_points$centroid_geometry
+centroids_sf <- arts_nitze_w_pts$centroid_geometry
 centroids_sf <- as.data.frame(centroids_sf)
-centroids
-centroids_ppp <- as.ppp(centroids$geometry)
+centroids_sf
+centroids_ppp <- as.ppp(centroids_sf$geometry)
 ```
 
 ## Average nearest neighbor
@@ -61,7 +54,6 @@ centroids_ppp <- as.ppp(centroids$geometry)
 mean(nndist(centroids_ppp, k=1))
 mean(nndist(centroids_ppp, k=2))
 ```
-
 ```{r ann vs neighbor order plot}
 ANN <- apply(nndist(centroids_ppp, k=1:7257),2,FUN=mean)
 plot(ANN ~ eval(1:7257), type="b", main=NULL, las=1)
@@ -71,18 +63,143 @@ plot(ANN ~ eval(1:7257), type="b", main=NULL, las=1)
 ann.p <- mean(nndist(centroids_ppp, k=1))
 ann.p
 ```
-
 ```{r convert nitze_sf to owin polygon layer of boundaries?}
 nitze_owin <- as.owin(nitze_sf)
 class(nitze_owin)
 plot(nitze_owin)
 ```
-
 ```{r null model}
 n     <- 1L               # Number of simulations
 ann.r <- vector(length = n) # Create an empty object to be used to store simulated ANN values
 for (i in 1:n){
   rand.p   <- rpoint(n=centroids_ppp$n, win=nitze_owin)  # Generate random point locations
+  ann.r[i] <- mean(nndist(rand.p, k=1))  # Tally the ANN values
+}
+plot(rand.p, pch=16, main=NULL, cols=rgb(0,0,0,0.5))
+```
+
+## Slice Nitze - Polygon 1
+```{r slice nitze}
+p1_sf <- slice(nitze_sf, 1)
+p1_sf
+
+
+arts_p1_sf = arts_sf |>
+  filter( # subset rows using a vector of logical values, i.e. c(TRUE, FALSE, ...)
+    map_lgl( # this performs the same function (second argument, after the '~') for each element in a list/vector
+      st_intersects(arts_sf, p1_sf, sparse = TRUE), # this returns a list (same length as nrow(arts)) of the intersections between each row of ARTS and the entire bbox datset
+      ~ length(.x) > 0 # checks if there is an intersection for a particular row of ARTS by checking the length of the output
+    )
+  )
+
+
+arts_p1_w_pts = arts_p1_sf |>
+    mutate(
+        centroid_geometry = map2(
+            as.numeric(CentroidLon),
+            as.numeric(CentroidLat),
+            ~ st_point(c(.x, .y))
+            ) |>
+            st_sfc(crs = 4326) |> # because the centroid points are reported in wgs 84
+            st_transform(crs = 3413) # assuming you want the output to match the CRS of ARTS as a whole
+        )
+
+centroids_p1_sf <- arts_p1_w_pts$centroid_geometry
+centroids_p1_sf <- as.data.frame(centroids_p1_sf)
+centroids_p1_sf
+centroids_p1_ppp <- as.ppp(centroids_p1_sf$geometry)
+
+p1_owin <- as.owin(p1_sf)
+class(p1_owin)
+
+n     <- 500L               # Number of simulations
+ann.r <- vector(length = n) # Create an empty object to be used to store simulated ANN values
+for (i in 1:n){
+  rand.p   <- rpoint(n=centroids_p1_ppp$n, win=p1_owin)  # Generate random point locations
+  ann.r[i] <- mean(nndist(rand.p, k=1))  # Tally the ANN values
+}
+plot(rand.p, pch=16, main=NULL, cols=rgb(0,0,0,0.5))
+```
+## Slice Nitze - Polygon 2
+```{r slice nitze}
+p2_sf <- slice(nitze_sf, 2)
+p2_sf
+
+
+arts_p2_sf = arts_sf |>
+  filter( # subset rows using a vector of logical values, i.e. c(TRUE, FALSE, ...)
+    map_lgl( # this performs the same function (second argument, after the '~') for each element in a list/vector
+      st_intersects(arts_sf, p2_sf, sparse = TRUE), # this returns a list (same length as nrow(arts)) of the intersections between each row of ARTS and the entire bbox datset
+      ~ length(.x) > 0 # checks if there is an intersection for a particular row of ARTS by checking the length of the output
+    )
+  )
+
+
+arts_p2_w_pts = arts_p2_sf |>
+    mutate(
+        centroid_geometry = map2(
+            as.numeric(CentroidLon),
+            as.numeric(CentroidLat),
+            ~ st_point(c(.x, .y))
+            ) |>
+            st_sfc(crs = 4326) |> # because the centroid points are reported in wgs 84
+            st_transform(crs = 3413) # assuming you want the output to match the CRS of ARTS as a whole
+        )
+
+centroids_p2_sf <- arts_p2_w_pts$centroid_geometry
+centroids_p2_sf <- as.data.frame(centroids_p2_sf)
+centroids_p2_sf
+centroids_p2_ppp <- as.ppp(centroids_p2_sf$geometry)
+
+p2_owin <- as.owin(p2_sf)
+class(p2_owin)
+
+n     <- 500L               # Number of simulations
+ann.r <- vector(length = n) # Create an empty object to be used to store simulated ANN values
+for (i in 1:n){
+  rand.p   <- rpoint(n=centroids_p2_ppp$n, win=p2_owin)  # Generate random point locations
+  ann.r[i] <- mean(nndist(rand.p, k=1))  # Tally the ANN values
+}
+plot(rand.p, pch=16, main=NULL, cols=rgb(0,0,0,0.5))
+```
+## Slice Nitze - Polygon 3
+```{r slice nitze}
+p3_sf <- slice(nitze_sf, 3)
+p3_sf
+
+
+arts_p3_sf = arts_sf |>
+  filter( # subset rows using a vector of logical values, i.e. c(TRUE, FALSE, ...)
+    map_lgl( # this performs the same function (second argument, after the '~') for each element in a list/vector
+      st_intersects(arts_sf, p3_sf, sparse = TRUE), # this returns a list (same length as nrow(arts)) of the intersections between each row of ARTS and the entire bbox datset
+      ~ length(.x) > 0 # checks if there is an intersection for a particular row of ARTS by checking the length of the output
+    )
+  )
+
+
+arts_p3_w_pts = arts_p3_sf |>
+    mutate(
+        centroid_geometry = map2(
+            as.numeric(CentroidLon),
+            as.numeric(CentroidLat),
+            ~ st_point(c(.x, .y))
+            ) |>
+            st_sfc(crs = 4326) |> # because the centroid points are reported in wgs 84
+            st_transform(crs = 3413) # assuming you want the output to match the CRS of ARTS as a whole
+        )
+
+centroids_p3_sf <- arts_p3_w_pts$centroid_geometry
+centroids_p3_sf <- as.data.frame(centroids_p3_sf)
+centroids_p3_sf
+centroids_p3_ppp <- as.ppp(centroids_p3_sf$geometry)
+
+p3_owin <- as.owin(p3_sf)
+class(p3_owin)
+
+n     <- 500L               # Number of simulations
+ann.r <- vector(length = n) # Create an empty object to be used to store simulated ANN values
+for (i in 1:n){
+  rand.p   <- rpoint(n=centroids_p3_ppp$n, win=p3_owin)  # Generate random point locations
   ann.r[i] <- mean(nndist(rand.p, k=1))  # Tally the ANN values
 }
 plot(rand.p, pch=16, main=NULL, cols=rgb(0,0,0,0.5))
