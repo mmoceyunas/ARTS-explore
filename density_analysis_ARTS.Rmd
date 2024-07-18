@@ -1,0 +1,219 @@
+---
+title: "density_analysis_ARTS"
+output: html_document
+date: "2024-07-18"
+---
+
+## Load library and dataset
+```{r}
+library(sf)
+library(ggplot2)
+library(spatstat)
+library(nngeo)
+library(tidyverse) 
+
+nitze_sf <- st_read("nitze_image_bounding_boxes/nitzeTrainingLabel2023_Negative_meta3.shp")
+arts_sf = st_read("arts_pc_v.1.0.0.geojson")
+```
+```{r make valid}
+if (!all(st_is_valid(arts_sf))) {
+  arts_sf = st_make_valid(arts_sf)
+}
+```
+
+## Simply Nitze and Intersect
+```{r simplify overlap in nitze_sf}
+nitze_bboxes = nitze_sf |>
+  st_remove_holes() |>
+  st_union() |>
+  st_as_sf() |>
+  rename(geometry = x)
+
+nitze_bbox_2 = nitze_sf |> #example slice
+  st_remove_holes() |>
+  st_union() |>
+  st_cast('POLYGON') |>
+  st_as_sf() |>
+  rename(geometry = x)|>
+  slice(2)
+
+nitze_bbox_3 = nitze_sf |> #example slice
+  st_remove_holes() |>
+  st_union() |>
+  st_cast('POLYGON') |>
+  st_as_sf() |>
+  rename(geometry = x)|>
+  slice(16)
+```
+
+```{r intersection}
+arts_nitze = arts_sf |>
+  filter(
+    map_lgl(
+      st_intersects(arts_sf, nitze_bboxes, sparse = TRUE), 
+      ~ length(.x) > 0
+    )
+  )
+
+arts_nitze_2 = arts_sf |> #example slice
+  filter(
+    map_lgl(
+      st_intersects(arts_sf, nitze_bbox_2, sparse = TRUE), 
+      ~ length(.x) > 0
+    )
+  )
+
+arts_nitze_3 = arts_sf |> #example slice
+  filter(
+    map_lgl(
+      st_intersects(arts_sf, nitze_bbox_3, sparse = TRUE), 
+      ~ length(.x) > 0
+    )
+  )
+```
+
+```{r}
+ggplot() + 
+  geom_sf(data = nitze_bboxes,
+          aes(color = 'Nitze BBoxes',
+              fill = 'Nitze BBoxes')) + 
+  geom_sf(data = arts_nitze, 
+           aes(color = 'ARTS',
+               fill = 'ARTS'),
+          size = 0.2) +
+  scale_color_manual(name = 'Dataset',
+                     values = c('red', 'black')) +
+  scale_fill_manual(name = 'Dataset',
+                     values = c('transparent', 'transparent')) +
+  theme(legend.position = 'bottom')
+
+ggplot() +                      #example slice
+  geom_sf(data = nitze_bbox_2,
+          aes(color = 'Nitze BBoxes',
+              fill = 'Nitze BBoxes')) + 
+  geom_sf(data = arts_nitze_2, 
+           aes(color = 'ARTS',
+               fill = 'ARTS'),
+          size = 0.2) +
+  scale_color_manual(name = 'Dataset',
+                     values = c('red', 'black')) +
+  scale_fill_manual(name = 'Dataset',
+                     values = c('transparent', 'transparent')) +
+  theme(legend.position = 'bottom')
+```
+
+## Convert to Centroids
+```{r convert to points}
+arts_nitze_centroids = arts_nitze |>
+  st_drop_geometry() |>
+    mutate(
+        geometry = map2(
+            as.numeric(CentroidLon),
+            as.numeric(CentroidLat),
+            ~ st_point(c(.x, .y))
+            ) |>
+            st_sfc(crs = 4326) |> 
+            st_transform(crs = 3413)
+        ) |>
+  st_as_sf(crs = 3413) |>
+  select(geometry)
+  # select(UID) # ppp uses one column of the dataframe as labels ("marks"), and this column can be used to link back to the original dataset, if necessary
+
+arts_nitze_centroids_2 = arts_nitze_2 |>  #example slice
+  st_drop_geometry() |>
+    mutate(
+        geometry = map2(
+            as.numeric(CentroidLon),
+            as.numeric(CentroidLat),
+            ~ st_point(c(.x, .y))
+            ) |>
+            st_sfc(crs = 4326) |> 
+            st_transform(crs = 3413) 
+        ) |>
+  st_as_sf(crs = 3413) |>
+  select(geometry)
+
+arts_nitze_centroids_3 = arts_nitze_3 |>  #example slice
+  st_drop_geometry() |>
+    mutate(
+        geometry = map2(
+            as.numeric(CentroidLon),
+            as.numeric(CentroidLat),
+            ~ st_point(c(.x, .y))
+            ) |>
+            st_sfc(crs = 4326) |> 
+            st_transform(crs = 3413) 
+        ) |>
+  st_as_sf(crs = 3413) |>
+  select(geometry)
+```
+
+```{r convert to ppp}
+centroids_ppp = nitze_bboxes |>
+  rbind(arts_nitze_centroids) |> # add Nitze bboxes as first row prior to conversion to ppp so that it will be taken as the window for further analyses
+  as.ppp()
+
+centroids_ppp_2 = nitze_bbox_2 |> #example slice
+  rbind(arts_nitze_centroids_2) |> 
+  as.ppp()
+
+centroids_ppp_3 = nitze_bbox_3 |> #example slice
+  rbind(arts_nitze_centroids_3) |> 
+  as.ppp()
+```
+
+```{r uniqueness necessary?}
+u_centroids_ppp <- unique(centroids_ppp, warn = TRUE)
+u_centroids_ppp_2 <- unique(centroids_ppp_2, warn = TRUE) #example slice
+u_centroids_ppp_3 <- unique(centroids_ppp_3, warn = TRUE) #example slice
+```
+
+```{r data prep}
+marks(u_centroids_ppp)  <- NULL
+nitze_bboxes_owin <- as.owin(nitze_bboxes)
+Window(u_centroids_ppp) <- nitze_bboxes_owin
+
+marks(u_centroids_ppp_2)  <- NULL     #example slice
+nitze_bbox_2_owin <- as.owin(nitze_bbox_2)
+Window(u_centroids_ppp_2) <- nitze_bbox_2_owin
+plot(u_centroids_ppp_2, main=NULL, cols=rgb(0,0,0,.2), pch=20)
+
+marks(u_centroids_ppp_3)  <- NULL     #example slice
+nitze_bbox_3_owin <- as.owin(nitze_bbox_3)
+Window(u_centroids_ppp_3) <- nitze_bbox_3_owin
+plot(u_centroids_ppp_3, main=NULL, cols=rgb(0,0,0,.2), pch=20)
+```
+
+## Kernel density
+```{r default bandwidth}
+#density function computes an isotropic kernel intensity estimate of the point patter, bandwidth defines the kernel's window extent
+
+K1 <- density(u_centroids_ppp)
+plot(K1, main=NULL, las=1)
+contour(K1, add=TRUE)
+
+K1.2 <- density(u_centroids_ppp_2)  #example slice
+plot(K1.2, main=NULL, las=1)
+contour(K1.2, add=TRUE)
+
+K1.3 <- density(u_centroids_ppp_3)  #example slice
+plot(K1.3, main=NULL, las=1)
+contour(K1.3, add=TRUE)
+```
+
+```{r 50 km bandwith}
+K2 <- density(u_centroids_ppp, kernel = "epanechnikov", sigma=500) # length unit is extracted from point layer's map units
+plot(K2, main=NULL, las=1)
+contour(K2, add=TRUE)
+
+K2.2 <- density(u_centroids_ppp_2, kernel = "epanechnikov", sigma=500) #example slice
+plot(K2.2, main=NULL, las=1)
+contour(K2.2, add=TRUE)
+
+K2.3 <- density(u_centroids_ppp_3, kernel = "epanechnikov", sigma=500) #example slice
+plot(K2.3, main=NULL, las=1)
+contour(K2.3, add=TRUE)
+
+#kernel defaults to gaussian smoothing function, can change to "quartic" "disc" or "epanechnikov" 
+#ex - density(starbucks.km, kernel = "disc"...)
+```
