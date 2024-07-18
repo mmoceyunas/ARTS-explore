@@ -140,88 +140,107 @@ marks(u_centroids_ppp_2)  <- NULL     #example slice
 nitze_bbox_2_owin <- as.owin(nitze_bbox_2)
 Window(u_centroids_ppp_2) <- nitze_bbox_2_owin
 plot(u_centroids_ppp_2, main=NULL, cols=rgb(0,0,0,.2), pch=20)
+
+#rescale
+u_c_ppp_km <- rescale(u_centroids_ppp, 1000, "km")
+u_c_ppp2_km <- rescale(u_centroids_ppp_2, 1000, "km")
+
+nitze_bboxes_km <- rescale(nitze_bboxes_owin, 1000, "km")
+nitze_bbox2_km <- rescale(nitze_bbox_2_owin, 1000, "km")
 ```
 
 ## Kernel density with og
 ```{r default bandwidth}
 #density function computes an isotropic kernel intensity estimate of the point patter, bandwidth defines the kernel's window extent
 
-K1 <- density(u_centroids_ppp)
+K1 <- density(u_c_ppp_km)
 plot(K1, main='RTS density in Nitze bounds', las=1)
 contour(K1, add=TRUE)
 ```
 ```{r estimate bandwidth}
-bw.diggle(u_centroids_ppp) #suggested if detecting single tight cluster in midst of random noise
-bw.ppl(u_centroids_ppp) #suggested if detecting pattern of predominantly tight clusters
-bw.scott(u_centroids_ppp)
+bw.diggle(u_c_ppp_km) #suggested if detecting single tight cluster in midst of random noise
+bw.ppl(u_c_ppp_km) #suggested if detecting pattern of predominantly tight clusters
+bw.scott(u_c_ppp_km)
 ```
 ```{r testing diff bandwidths}
 par(mfrow=c(2,2))
-plot(density.ppp(u_centroids_ppp, sigma = bw.diggle(u_centroids_ppp),edge=T),
+plot(density.ppp(u_c_ppp_km, sigma = bw.diggle(u_c_ppp_km),edge=T),
      main = paste("diggle"))
 
-plot(density.ppp(u_centroids_ppp, sigma = bw.ppl(u_centroids_ppp),edge=T),
+plot(density.ppp(u_c_ppp_km, sigma = bw.ppl(u_c_ppp_km),edge=T),
      main=paste("likelihood cross-validation"))
 
-plot(density.ppp(u_centroids_ppp, sigma = bw.scott(u_centroids_ppp)[2],edge=T),
+plot(density.ppp(u_c_ppp_km, sigma = bw.scott(u_c_ppp_km)[2],edge=T),
      main=paste("scott 1"))
 
-plot(density.ppp(u_centroids_ppp, sigma = bw.scott(u_centroids_ppp)[1],edge=T),
+plot(density.ppp(u_c_ppp_km, sigma = bw.scott(u_c_ppp_km)[1],edge=T),
      main=paste("scott 2"))
 ```
 ```{r testing different kernels}
 par(mfrow=c(2,2))
-plot(density.ppp(u_centroids_ppp, sigma = bw.ppl(u_centroids_ppp),edge=T),
+plot(density.ppp(u_c_ppp_km, sigma = bw.ppl(u_c_ppp_km),edge=T),
      main=paste("Gaussian"))
-plot(density.ppp(u_centroids_ppp, kernel = "epanechnikov", sigma = bw.ppl(u_centroids_ppp),edge=T),
+plot(density.ppp(u_c_ppp_km, kernel = "epanechnikov", sigma = bw.ppl(u_c_ppp_km),edge=T),
      main=paste("Epanechnikov"))
-plot(density.ppp(u_centroids_ppp, kernel = "quartic", sigma = bw.ppl(u_centroids_ppp),edge=T),
+plot(density.ppp(u_c_ppp_km, kernel = "quartic", sigma = bw.ppl(u_c_ppp_km),edge=T),
      main=paste("Quartic"))
-plot(density.ppp(u_centroids_ppp, kernel = "disc", sigma = bw.ppl(u_centroids_ppp),edge=T),
+plot(density.ppp(u_c_ppp_km, kernel = "disc", sigma = bw.ppl(u_c_ppp_km),edge=T),
      main=paste("Disc"))
+```
+```{r my choice?}
+plot(density.ppp(u_c_ppp_km, kernel = "epanechnikov", sigma = bw.ppl(u_c_ppp_km),edge=T),
+     main=paste("RTS Kernel Density Estimate in Nitze Bounds"))
 ```
 
 ## Kernel density w/ slices
 ```{r default bandwidth} 
-K1.2 <- density(u_centroids_ppp_2)  #example slice
+K1.2 <- density(u_c_ppp2_km)  #example slice
 plot(K1.2, main=NULL, las=1)
 contour(K1.2, add=TRUE)
 
 ```
 ```{r estimate bandwidth}
-bw.diggle(u_centroids_ppp_2) #suggested if detecting single tight cluster in midst of random noise
-bw.ppl(u_centroids_ppp_2) #suggested if detecting pattern of predominantly tight clusters
-bw.scott(u_centroids_ppp_2)
+bw.diggle(u_c_ppp2_km) #suggested if detecting single tight cluster in midst of random noise
+bw.ppl(u_c_ppp2_km) #suggested if detecting pattern of predominantly tight clusters
+bw.scott(u_c_ppp2_km)
 ```
 ```{r testing diff bandwidths}
 par(mfrow=c(2,2))
-plot(density.ppp(u_centroids_ppp_2, sigma = bw.diggle(u_centroids_ppp_2),edge=T),
+plot(density.ppp(u_c_ppp2_km, sigma = bw.diggle(u_c_ppp2_km),edge=T),
      main = paste("diggle"))
 
-plot(density.ppp(u_centroids_ppp_2, sigma = bw.ppl(u_centroids_ppp_2),edge=T),
+plot(density.ppp(u_c_ppp2_km, sigma = bw.ppl(u_c_ppp2_km),edge=T),
      main=paste("likelihood cross-validation"))
 
-plot(density.ppp(u_centroids_ppp_2, sigma = bw.scott(u_centroids_ppp_2)[2],edge=T),
+plot(density.ppp(u_c_ppp2_km, sigma = bw.scott(u_c_ppp2_km)[2],edge=T),
      main=paste("scott 1"))
 
-plot(density.ppp(u_centroids_ppp_2, sigma = bw.scott(u_centroids_ppp_2)[1],edge=T),
+plot(density.ppp(u_c_ppp2_km, sigma = bw.scott(u_c_ppp2_km)[1],edge=T),
      main=paste("scott 2"))
 ```
 ```{r testing different kernels}
 par(mfrow=c(2,2))
-plot(density.ppp(u_centroids_ppp_2, sigma = bw.ppl(u_centroids_ppp_2),edge=T),
+plot(density.ppp(u_c_ppp2_km, sigma = bw.ppl(u_c_ppp2_km),edge=T),
      main=paste("Gaussian"))
-plot(density.ppp(u_centroids_ppp_2, kernel = "epanechnikov", sigma = bw.ppl(u_centroids_ppp_2),edge=T),
+plot(density.ppp(u_c_ppp2_km, kernel = "epanechnikov", sigma = bw.ppl(u_c_ppp2_km),edge=T),
      main=paste("Epanechnikov"))
-plot(density.ppp(u_centroids_ppp_2, kernel = "quartic", sigma = bw.ppl(u_centroids_ppp_2),edge=T),
+plot(density.ppp(u_c_ppp2_km, kernel = "quartic", sigma = bw.ppl(u_c_ppp2_km),edge=T),
      main=paste("Quartic"))
-plot(density.ppp(u_centroids_ppp_2, kernel = "disc", sigma = bw.ppl(u_centroids_ppp_2),edge=T),
+plot(density.ppp(u_c_ppp2_km, kernel = "disc", sigma = bw.ppl(u_c_ppp2_km),edge=T),
      main=paste("Disc"))
 ```
-```{r add context}
-library(raster)
-Cmap2 <- density.ppp(u_centroids_ppp_2, sigma = bw.ppl(u_centroids_ppp_2),edge=T)
-R2 <- raster(Cmap2)
-R1[R2 < 0.0001 ] <- NA #remove very low density values
-plot(R2, main = )
+```{r my choice?}
+plot(density.ppp(u_c_ppp2_km, kernel = "epanechnikov", sigma = bw.ppl(u_c_ppp2_km),edge=T),
+     main=paste("RTS Kernel Density Estimate in Nitze Slice"))
+```
+
+## Quadrat density w/ slice
+```{r dividing grids}
+Q <- quadratcount(u_c_pp2_km, nx=6, ny=3)
+plot(u_c_pp2_km, pch=20, cols="grey70", main=NULL)
+plot(Q, add=TRUE) #count
+
+Q.d <- intensity(Q)
+plot(intensity(Q, image=TRUE), main=NULL, las=1)
+plot(u_c_pp2_km, pch=20, cex=0.6, col=rgb(0,0,0,.5), add=TRUE) #density
 ```
