@@ -12,7 +12,6 @@ library(sf)
 library(spData)
 library(tidyverse)
 library(dplyr)
-library(conflicted)
 ```
 
 # Load Data
