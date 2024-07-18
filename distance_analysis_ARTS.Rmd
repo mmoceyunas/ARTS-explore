@@ -1,5 +1,5 @@
 ---
-title: "autocorrelation_nitze"
+title: "distance_analysis_ARTS"
 author: "Margo Moceyunas"
 date: "2024-07-16"
 output: html_document
@@ -143,8 +143,8 @@ arts_nitze_centroids = arts_nitze |>
             as.numeric(CentroidLat),
             ~ st_point(c(.x, .y))
             ) |>
-            st_sfc(crs = 4326) |> # because the centroid points are reported in wgs 84
-            st_transform(crs = 3413) # assuming you want the output to match the CRS of ARTS as a whole
+            st_sfc(crs = 4326) |> 
+            st_transform(crs = 3413)
         ) |>
   st_as_sf(crs = 3413) |>
   select(geometry)
@@ -158,8 +158,8 @@ arts_nitze_centroids_2 = arts_nitze_2 |>
             as.numeric(CentroidLat),
             ~ st_point(c(.x, .y))
             ) |>
-            st_sfc(crs = 4326) |> # because the centroid points are reported in wgs 84
-            st_transform(crs = 3413) # assuming you want the output to match the CRS of ARTS as a whole
+            st_sfc(crs = 4326) |> 
+            st_transform(crs = 3413) 
         ) |>
   st_as_sf(crs = 3413) |>
   select(geometry)
@@ -202,172 +202,3 @@ nitze_owin <- as.owin(nitze_sf)
 class(nitze_owin)
 plot(nitze_owin)
 ```
-
-=======
->>>>>>> de1e0f0cd4a5982ca6c9d4de1ef30f81e6cf4c7c
-```{r null model}
-n = 1000       # Number of simulations
-ann.r <- vector(length = n) # Create an empty object to be used to store simulated ANN values
-for (i in 1:n){
-  rand.p  <- rpoint(n = centroids_ppp_2$n, win = centroids_ppp_2)  # Generate random point locations
-  ann.r[i] <- mean(nndist(rand.p, k=1))  # Tally the ANN values
-}
-```
-
-```{r}
-hist(ann.r, main=NULL, las=1, breaks=40, col="bisque", xlim=range(ann.p, ann.r))
-abline(v=ann.p, col="blue")
-
-<<<<<<< HEAD
-#intersection
-arts_p1_sf = arts_sf |>
-  filter(
-    map_lgl(
-      st_intersects(arts_sf, p1_sf, sparse = TRUE), 
-      ~ length(.x) > 0
-    )
-  )
-
-#add points column
-arts_p1_w_pts = arts_p1_sf |>
-    mutate(
-        centroid_geometry = map2(
-            as.numeric(CentroidLon),
-            as.numeric(CentroidLat),
-            ~ st_point(c(.x, .y))
-            ) |>
-            st_sfc(crs = 4326) |> 
-            st_transform(crs = 3413)
-        )
-
-#create ppp points
-centroids_p1_sf <- arts_p1_w_pts$centroid_geometry
-centroids_p1_sf <- as.data.frame(centroids_p1_sf)
-centroids_p1_sf
-centroids_p1_ppp <- as.ppp(centroids_p1_sf$geometry)
-
-#convert slice to owin
-p1_owin <- as.owin(p1_sf)
-class(p1_owin)
-```
-```{r Null simulation}
-n     <- 500L               # Number of simulations
-ann.r <- vector(length = n) # Create an empty object to be used to store simulated ANN values
-for (i in 1:n){
-  rand.p   <- rpoint(n=centroids_p1_ppp$n, win=p1_owin)  # Generate random point locations
-  ann.r[i] <- mean(nndist(rand.p, k=1))  # Tally the ANN values
-}
-plot(rand.p, pch=16, main=NULL, cols=rgb(0,0,0,0.5))
-```
-
-## Slice Nitze - Polygon 2
-```{r slice nitze}
-p2_sf <- slice(nitze_sf, 2)
-p2_sf
-
-#intersection
-arts_p2_sf = arts_sf |>
-  filter( 
-    map_lgl( 
-      st_intersects(arts_sf, p2_sf, sparse = TRUE), 
-      ~ length(.x) > 0 
-    )
-  )
-
-#add points column
-arts_p2_w_pts = arts_p2_sf |>
-    mutate(
-        centroid_geometry = map2(
-            as.numeric(CentroidLon),
-            as.numeric(CentroidLat),
-            ~ st_point(c(.x, .y))
-            ) |>
-            st_sfc(crs = 4326) |> 
-            st_transform(crs = 3413) 
-        )
-
-#create ppp points
-centroids_p2_sf <- arts_p2_w_pts$centroid_geometry
-centroids_p2_sf <- as.data.frame(centroids_p2_sf)
-centroids_p2_sf
-centroids_p2_ppp <- as.ppp(centroids_p2_sf$geometry)
-
-#convert slice to owin
-p2_owin <- as.owin(p2_sf)
-class(p2_owin)
-```
-```{r Null simulation}
-n     <- 500L               # Number of simulations
-ann.r <- vector(length = n) # Create an empty object to be used to store simulated ANN values
-for (i in 1:n){
-  rand.p   <- rpoint(n=centroids_p2_ppp$n, win=p2_owin)  # Generate random point locations
-  ann.r[i] <- mean(nndist(rand.p, k=1))  # Tally the ANN values
-}
-plot(rand.p, pch=16, main=NULL, cols=rgb(0,0,0,0.5))
-```
-## Slice Nitze - Polygon 3
-```{r slice nitze}
-p3_sf <- slice(nitze_sf, 3)
-p3_sf
-
-#intersection
-arts_p3_sf = arts_sf |>
-  filter( 
-    map_lgl( 
-      st_intersects(arts_sf, p3_sf, sparse = TRUE), 
-      ~ length(.x) > 0 
-    )
-  )
-
-#add points column
-arts_p3_w_pts = arts_p3_sf |>
-    mutate(
-        centroid_geometry = map2(
-            as.numeric(CentroidLon),
-            as.numeric(CentroidLat),
-            ~ st_point(c(.x, .y))
-            ) |>
-            st_sfc(crs = 4326) |> 
-            st_transform(crs = 3413) 
-        )
-
-#create ppp points
-centroids_p3_sf <- arts_p3_w_pts$centroid_geometry
-centroids_p3_sf <- as.data.frame(centroids_p3_sf)
-centroids_p3_sf
-centroids_p3_ppp <- as.ppp(centroids_p3_sf$geometry)
-
-#convert slice to owin
-p3_owin <- as.owin(p3_sf)
-class(p3_owin)
-```
-```{r assuming uniform point density across the state}
-ann.p <- mean(nndist(centroids_p3_ppp, k=1))
-ann.p
-```
-```{r Null simulation}
-n     <- 500L               # Number of simulations
-ann.r <- vector(length = n) # Create an empty object to be used to store simulated ANN values
-for (i in 1:n){
-  rand.p   <- rpoint(n=centroids_p3_ppp$n, win=p3_owin)  # Generate random point locations
-  ann.r[i] <- mean(nndist(rand.p, k=1))  # Tally the ANN values
-}
-plot(rand.p, pch=16, main=NULL, cols=rgb(0,0,0,0.5))
-```
-```{r expected values under the null}
-hist(ann.r, main=NULL, las=1, breaks=40, col="bisque", xlim=range(ann.p, ann.r))
-abline(v=ann.p, col="blue")
-```
-``` {r Computing pseudo p-value from simulation}
-N.greater <- sum(ann.r > ann.p)
-p <- min(N.greater + 1, n + 1 - N.greater) / (n +1)
-p
-```
-=======
-N.greater <- sum(ann.r > ann.p)
-
-p <- min(N.greater + 1, n + 1 - N.greater) / (n +1)
-p
-```
-
->>>>>>> de1e0f0cd4a5982ca6c9d4de1ef30f81e6cf4c7c
