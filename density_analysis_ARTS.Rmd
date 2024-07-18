@@ -36,16 +36,7 @@ nitze_bbox_2 = nitze_sf |> #example slice
   st_as_sf() |>
   rename(geometry = x)|>
   slice(2)
-
-nitze_bbox_3 = nitze_sf |> #example slice
-  st_remove_holes() |>
-  st_union() |>
-  st_cast('POLYGON') |>
-  st_as_sf() |>
-  rename(geometry = x)|>
-  slice(16)
 ```
-
 ```{r intersection}
 arts_nitze = arts_sf |>
   filter(
@@ -62,17 +53,8 @@ arts_nitze_2 = arts_sf |> #example slice
       ~ length(.x) > 0
     )
   )
-
-arts_nitze_3 = arts_sf |> #example slice
-  filter(
-    map_lgl(
-      st_intersects(arts_sf, nitze_bbox_3, sparse = TRUE), 
-      ~ length(.x) > 0
-    )
-  )
 ```
-
-```{r}
+```{r check with plots}
 ggplot() + 
   geom_sf(data = nitze_bboxes,
           aes(color = 'Nitze BBoxes',
@@ -132,20 +114,6 @@ arts_nitze_centroids_2 = arts_nitze_2 |>  #example slice
         ) |>
   st_as_sf(crs = 3413) |>
   select(geometry)
-
-arts_nitze_centroids_3 = arts_nitze_3 |>  #example slice
-  st_drop_geometry() |>
-    mutate(
-        geometry = map2(
-            as.numeric(CentroidLon),
-            as.numeric(CentroidLat),
-            ~ st_point(c(.x, .y))
-            ) |>
-            st_sfc(crs = 4326) |> 
-            st_transform(crs = 3413) 
-        ) |>
-  st_as_sf(crs = 3413) |>
-  select(geometry)
 ```
 
 ```{r convert to ppp}
@@ -156,16 +124,11 @@ centroids_ppp = nitze_bboxes |>
 centroids_ppp_2 = nitze_bbox_2 |> #example slice
   rbind(arts_nitze_centroids_2) |> 
   as.ppp()
-
-centroids_ppp_3 = nitze_bbox_3 |> #example slice
-  rbind(arts_nitze_centroids_3) |> 
-  as.ppp()
 ```
 
 ```{r uniqueness necessary?}
 u_centroids_ppp <- unique(centroids_ppp, warn = TRUE)
 u_centroids_ppp_2 <- unique(centroids_ppp_2, warn = TRUE) #example slice
-u_centroids_ppp_3 <- unique(centroids_ppp_3, warn = TRUE) #example slice
 ```
 
 ```{r data prep}
@@ -177,43 +140,88 @@ marks(u_centroids_ppp_2)  <- NULL     #example slice
 nitze_bbox_2_owin <- as.owin(nitze_bbox_2)
 Window(u_centroids_ppp_2) <- nitze_bbox_2_owin
 plot(u_centroids_ppp_2, main=NULL, cols=rgb(0,0,0,.2), pch=20)
-
-marks(u_centroids_ppp_3)  <- NULL     #example slice
-nitze_bbox_3_owin <- as.owin(nitze_bbox_3)
-Window(u_centroids_ppp_3) <- nitze_bbox_3_owin
-plot(u_centroids_ppp_3, main=NULL, cols=rgb(0,0,0,.2), pch=20)
 ```
 
-## Kernel density
+## Kernel density with og
 ```{r default bandwidth}
 #density function computes an isotropic kernel intensity estimate of the point patter, bandwidth defines the kernel's window extent
 
 K1 <- density(u_centroids_ppp)
-plot(K1, main=NULL, las=1)
+plot(K1, main='RTS density in Nitze bounds', las=1)
 contour(K1, add=TRUE)
+```
+```{r estimate bandwidth}
+bw.diggle(u_centroids_ppp) #suggested if detecting single tight cluster in midst of random noise
+bw.ppl(u_centroids_ppp) #suggested if detecting pattern of predominantly tight clusters
+bw.scott(u_centroids_ppp)
+```
+```{r testing diff bandwidths}
+par(mfrow=c(2,2))
+plot(density.ppp(u_centroids_ppp, sigma = bw.diggle(u_centroids_ppp),edge=T),
+     main = paste("diggle"))
 
+plot(density.ppp(u_centroids_ppp, sigma = bw.ppl(u_centroids_ppp),edge=T),
+     main=paste("likelihood cross-validation"))
+
+plot(density.ppp(u_centroids_ppp, sigma = bw.scott(u_centroids_ppp)[2],edge=T),
+     main=paste("scott 1"))
+
+plot(density.ppp(u_centroids_ppp, sigma = bw.scott(u_centroids_ppp)[1],edge=T),
+     main=paste("scott 2"))
+```
+```{r testing different kernels}
+par(mfrow=c(2,2))
+plot(density.ppp(u_centroids_ppp, sigma = bw.ppl(u_centroids_ppp),edge=T),
+     main=paste("Gaussian"))
+plot(density.ppp(u_centroids_ppp, kernel = "epanechnikov", sigma = bw.ppl(u_centroids_ppp),edge=T),
+     main=paste("Epanechnikov"))
+plot(density.ppp(u_centroids_ppp, kernel = "quartic", sigma = bw.ppl(u_centroids_ppp),edge=T),
+     main=paste("Quartic"))
+plot(density.ppp(u_centroids_ppp, kernel = "disc", sigma = bw.ppl(u_centroids_ppp),edge=T),
+     main=paste("Disc"))
+```
+
+## Kernel density w/ slices
+```{r default bandwidth} 
 K1.2 <- density(u_centroids_ppp_2)  #example slice
 plot(K1.2, main=NULL, las=1)
 contour(K1.2, add=TRUE)
 
-K1.3 <- density(u_centroids_ppp_3)  #example slice
-plot(K1.3, main=NULL, las=1)
-contour(K1.3, add=TRUE)
 ```
+```{r estimate bandwidth}
+bw.diggle(u_centroids_ppp_2) #suggested if detecting single tight cluster in midst of random noise
+bw.ppl(u_centroids_ppp_2) #suggested if detecting pattern of predominantly tight clusters
+bw.scott(u_centroids_ppp_2)
+```
+```{r testing diff bandwidths}
+par(mfrow=c(2,2))
+plot(density.ppp(u_centroids_ppp_2, sigma = bw.diggle(u_centroids_ppp_2),edge=T),
+     main = paste("diggle"))
 
-```{r 50 km bandwith}
-K2 <- density(u_centroids_ppp, kernel = "epanechnikov", sigma=500) # length unit is extracted from point layer's map units
-plot(K2, main=NULL, las=1)
-contour(K2, add=TRUE)
+plot(density.ppp(u_centroids_ppp_2, sigma = bw.ppl(u_centroids_ppp_2),edge=T),
+     main=paste("likelihood cross-validation"))
 
-K2.2 <- density(u_centroids_ppp_2, kernel = "epanechnikov", sigma=500) #example slice
-plot(K2.2, main=NULL, las=1)
-contour(K2.2, add=TRUE)
+plot(density.ppp(u_centroids_ppp_2, sigma = bw.scott(u_centroids_ppp_2)[2],edge=T),
+     main=paste("scott 1"))
 
-K2.3 <- density(u_centroids_ppp_3, kernel = "epanechnikov", sigma=500) #example slice
-plot(K2.3, main=NULL, las=1)
-contour(K2.3, add=TRUE)
-
-#kernel defaults to gaussian smoothing function, can change to "quartic" "disc" or "epanechnikov" 
-#ex - density(starbucks.km, kernel = "disc"...)
+plot(density.ppp(u_centroids_ppp_2, sigma = bw.scott(u_centroids_ppp_2)[1],edge=T),
+     main=paste("scott 2"))
+```
+```{r testing different kernels}
+par(mfrow=c(2,2))
+plot(density.ppp(u_centroids_ppp_2, sigma = bw.ppl(u_centroids_ppp_2),edge=T),
+     main=paste("Gaussian"))
+plot(density.ppp(u_centroids_ppp_2, kernel = "epanechnikov", sigma = bw.ppl(u_centroids_ppp_2),edge=T),
+     main=paste("Epanechnikov"))
+plot(density.ppp(u_centroids_ppp_2, kernel = "quartic", sigma = bw.ppl(u_centroids_ppp_2),edge=T),
+     main=paste("Quartic"))
+plot(density.ppp(u_centroids_ppp_2, kernel = "disc", sigma = bw.ppl(u_centroids_ppp_2),edge=T),
+     main=paste("Disc"))
+```
+```{r add context}
+library(raster)
+Cmap2 <- density.ppp(u_centroids_ppp_2, sigma = bw.ppl(u_centroids_ppp_2),edge=T)
+R2 <- raster(Cmap2)
+R1[R2 < 0.0001 ] <- NA #remove very low density values
+plot(R2, main = )
 ```
