@@ -88,6 +88,7 @@ PPM0 <- ppm(starbucks.km ~ 1)
 PPM0
 starbucks.km$n / area(ma.km) 
 anova(PPM0, PPM1, test="LRT")
+
 ```
 
 
