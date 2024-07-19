@@ -193,6 +193,7 @@ plot(density.ppp(u_c_ppp_km, kernel = "epanechnikov", sigma = bw.ppl(u_c_ppp_km)
 
 hist(density.ppp(u_c_ppp_km, kernel = "epanechnikov", sigma = bw.ppl(u_c_ppp_km)), main=NULL, las=1)
 ```
+
 ## Kernel density adjusted for covariate w/ overall
 ```{r prep PCA 1}
 library(raster)
@@ -210,6 +211,7 @@ pca1 <- mask(pca1, nitze_bboxes)
 plot(pca1)
 
 #convert to im
+install.packages("maptools", repos = "https://packagemanager.posit.co/cran/2023-10-13")
 library(maptools)
 pca1_im <- as.im.RasterLayer(pca1)
 class(pca1_im)
@@ -217,6 +219,8 @@ hist(pca1_im, main=NULL, las=1)
 
 #rescale?
 pca1_im_km <- rescale(pca1_im, 1000, "km")
+na_count <- sum(is.na(pca1_im_km))
+na_count
 ```
 
 ```{r computing rho}
@@ -224,8 +228,38 @@ marks(u_c_ppp_km) <- NULL
 nitze_bboxes_owin <- as.owin(nitze_bboxes)
 Window(u_c_ppp_km) <- nitze_bboxes_owin
 
-rho <- rhohat(u_c_ppp_km, pca1_im_km, method = "ratio")
-plot(rho, las=1, main=NULL, legendargs=list(cex=0.8, xpd=TRUE, inset=c(1.01, 0) ))
+rho <- rhohat(u_c_ppp_km, pca1_im_km, method = "ratio", eps = 1)
+plot(rho, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+pred <- predict(rho)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+
+```{r compare output of predicted to observed}
+K1_vs_pred <- pairs(K1, pred, plot = FALSE)
+plot(K1_vs_pred$pred ~ K1_vs_pred$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1))
+
+summary(as.data.frame(K1_vs_pred))
+
+plot(K1_vs_pred$pred ~ K1_vs_pred$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 1.6), ylim = c(0, 1.5)) + abline(a=0, b = 1, col = "red")
+```
+
+```{r poisson point process model}
+PPM1 <- ppm(u_c_ppp_km ~ pca1_im_km)
+
+plot(effectfun(PPM1, "pca1_im_km", se.fit=TRUE), main=NULL, 
+     las=1, legendargs=list(cex=0.8, xpd=TRUE, inset=c(1.01, 0) ))
+
+PPM1
 ```
 
 ## Kernel density w/ slices
