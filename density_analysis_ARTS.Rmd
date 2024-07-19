@@ -149,7 +149,7 @@ nitze_bboxes_km <- rescale(nitze_bboxes_owin, 1000, "km")
 nitze_bbox2_km <- rescale(nitze_bbox_2_owin, 1000, "km")
 ```
 
-## Kernel density with og
+## Kernel density w/ overall
 ```{r default bandwidth}
 #density function computes an isotropic kernel intensity estimate of the point patter, bandwidth defines the kernel's window extent
 
@@ -190,6 +190,42 @@ plot(density.ppp(u_c_ppp_km, kernel = "disc", sigma = bw.ppl(u_c_ppp_km),edge=T)
 ```{r my choice?}
 plot(density.ppp(u_c_ppp_km, kernel = "epanechnikov", sigma = bw.ppl(u_c_ppp_km),edge=T),
      main=paste("RTS Kernel Density Estimate in Nitze Bounds"))
+
+hist(density.ppp(u_c_ppp_km, kernel = "epanechnikov", sigma = bw.ppl(u_c_ppp_km)), main=NULL, las=1)
+```
+## Kernel density adjusted for covariate w/ overall
+```{r prep PCA 1}
+library(raster)
+pca <- raster("pca.tif")
+
+#changing crs
+crs(pca)
+new_crs <- "+proj=stere +lat_0=90 +lat_ts=70 +lon_0=-45 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs"
+crs(pca) <- new_crs
+
+#isolating band and cropping by bounding boxes
+band_index <- 1
+pca1 <- pca[[band_index]]
+pca1 <- mask(pca1, nitze_bboxes)
+plot(pca1)
+
+#convert to im
+library(maptools)
+pca1_im <- as.im.RasterLayer(pca1)
+class(pca1_im)
+hist(pca1_im, main=NULL, las=1)
+
+#rescale?
+pca1_im_km <- rescale(pca1_im, 1000, "km")
+```
+
+```{r computing rho}
+marks(u_c_ppp_km) <- NULL
+nitze_bboxes_owin <- as.owin(nitze_bboxes)
+Window(u_c_ppp_km) <- nitze_bboxes_owin
+
+rho <- rhohat(u_c_ppp_km, pca1_im_km, method = "ratio")
+plot(rho, las=1, main=NULL, legendargs=list(cex=0.8, xpd=TRUE, inset=c(1.01, 0) ))
 ```
 
 ## Kernel density w/ slices
@@ -230,7 +266,7 @@ plot(density.ppp(u_c_ppp2_km, kernel = "disc", sigma = bw.ppl(u_c_ppp2_km),edge=
      main=paste("Disc"))
 ```
 ```{r my choice?}
-plot(density.ppp(u_c_ppp2_km, kernel = "epanechnikov", sigma = bw.ppl(u_c_ppp2_km),edge=T),
+plot(density.ppp(u_c_ppp2_km, kernel = "epanechnikov", sigma = 1.167406,edge=T),
      main=paste("RTS Kernel Density Estimate in Nitze Slice"))
 ```
 
@@ -244,3 +280,71 @@ Q.d <- intensity(Q)
 plot(intensity(Q, image=TRUE), main=NULL, las=1)
 plot(u_c_pp2_km, pch=20, cex=0.6, col=rgb(0,0,0,.5), add=TRUE) #density
 ```
+
+## Experiment w/ 2 slices combined
+```{r make slice} 
+nitze_bbox_3 = nitze_sf |> #example slice
+  st_remove_holes() |>
+  st_union() |>
+  st_cast('POLYGON') |>
+  st_as_sf() |>
+  rename(geometry = x)|>
+  slice(18, 19)
+
+nitze_bbox_3 = nitze_bbox_3 |>
+  st_remove_holes() |>
+  st_union() |>
+  st_as_sf() |>
+  rename(geometry = x)
+
+plot(nitze_bbox_3)
+```
+```{r intersection}
+arts_nitze_3 = arts_sf |> #example slice
+  filter(
+    map_lgl(
+      st_intersects(arts_sf, nitze_bbox_3, sparse = TRUE), 
+      ~ length(.x) > 0
+    )
+  )
+```
+
+```{r convert to centroids}
+arts_nitze_centroids_3 = arts_nitze_3 |>  #example slice
+  st_drop_geometry() |>
+    mutate(
+        geometry = map2(
+            as.numeric(CentroidLon),
+            as.numeric(CentroidLat),
+            ~ st_point(c(.x, .y))
+            ) |>
+            st_sfc(crs = 4326) |> 
+            st_transform(crs = 3413) 
+        ) |>
+  st_as_sf(crs = 3413) |>
+  select(geometry)
+
+centroids_ppp_3 = nitze_bbox_3 |>
+  rbind(arts_nitze_centroids_3) |> # add Nitze bboxes as first row prior to conversion to ppp so that it will be taken as the window for further analyses
+  as.ppp()
+```
+
+```{r uniqueness necessary?}
+u_centroids_ppp_3 <- unique(centroids_ppp_3, warn = TRUE)
+```
+
+```{r data prep}
+marks(u_centroids_ppp_3)  <- NULL
+nitze_bbox_3_owin <- as.owin(nitze_bbox_3)
+Window(u_centroids_ppp_3) <- nitze_bbox_3_owin
+
+#rescale
+u_c_ppp3_km <- rescale(u_centroids_ppp_3, 1000, "km")
+nitze_bbox_3_km <- rescale(nitze_bbox_3_owin, 1000, "km")
+```
+
+```{r kernel density}
+plot(density.ppp(u_c_ppp3_km, kernel = "epanechnikov", sigma = 1.167406,edge=T),
+     main=paste("RTS Kernel Density Estimate w/ 2 Nitze Slices"))
+```
+

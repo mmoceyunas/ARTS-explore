@@ -39,28 +39,5 @@ site_map + geom_sf(data = arts_sf_subset2, aes(fill = TrainClass), col = "red")
 site_map + geom_sf(data = arts_sf_subset3, aes(fill = TrainClass), col = "red")
 site_map + geom_sf(data = arts_sf, aes(fill = TrainClass), col = "red")
 
-#spatial autocorrelation
-library(tmap)
-tm_shape(arts_sf_subset1) + tm_polygons(style="equal", border.col = "grey80", lwd = 0.5,
-                                col = "CreatorLab", palette="Greens") +
-  tm_legend(outside = TRUE, text.size = .8)  +
-  tm_layout(frame = FALSE)
+#scratch
 
-library(tidyverse)
-library(here)
-library(magrittr)
-library(sf)
-library(tmap)
-library(janitor)
-library(RColorBrewer)
-library(spatstat)
-library(raster)
-library(rosm)
-library(dbscan)
-library(leaflet)
-library(spdep)
-
-xy <- st_centroid(arts_sf)
-s.dist <- dnearneigh(xy, 0, 500)
-s.dist[[1]] |> length()
-annulus1 <- arts_sf[s.dist[[1]], "MergedRTS"] 
