@@ -33,3 +33,5 @@ autocorrelation.Rmd
 autocorrelation_nitze.Rmd
 pca.tif
 .RDataTmp
+.RDataTmp1
+ARTS-explore-workspace.RData
