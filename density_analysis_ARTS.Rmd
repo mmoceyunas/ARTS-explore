@@ -449,7 +449,12 @@ PPM1_SLICE_corrected <- ppm(PPM1_SLICE_drop ~ pca1_SLICE_im_km)
 plot(effectfun(PPM1_SLICE_corrected, "pca1_SLICE_im_km", se.fit=TRUE), main= "Poisson Point Process Model", 
      las=1)
 
-PPM1_corrected
-#lambda(i) = e^(-0.09 + 0.34)
-#for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-0.09 + 0.34) units
+PPM1_SLICE_corrected
+#OVERALL: lambda(i) = e^(-0.09 + 0.34)
+#OVERAL: for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-0.09 + 0.34) units
+
+#SLICE: lambda(i) = e^(-6.26 + 2.3)
+#SLICE: for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-6.26 + 2.3)
+
+
 ```
