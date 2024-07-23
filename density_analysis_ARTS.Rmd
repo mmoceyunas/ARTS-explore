@@ -239,8 +239,7 @@ na_count
 
 ```{r computing rho}
 marks(ppp_km) <- NULL
-nitze_bboxes_owin <- as.owin(nitze_bboxes)
-Window(ppp_km) <- nitze_bboxes_owin
+Window(ppp_km) <- bboxes_owin_km
 
 rho <- rhohat(ppp_km, pca1_im_km, method = "ratio", eps = 1, rule.eps = "adjust.eps")
 plot(rho, las=1, main= "rho VS covariate")
@@ -416,6 +415,7 @@ Window(ppp2_km) <- bbox2_owin_km
 rho_SLICE <- rhohat(ppp2_km, pca1_SLICE_im_km, method = "ratio", eps =1, rule.eps = "adjust.eps")
 plot(rho_SLICE, las=1, main= "rho VS covariate")
 ```
+
 ```{r generating map of predicted RTS density if PCA1 was the sole driving process}
 pred <- predict(rho_SLICE)
 cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
@@ -455,6 +455,34 @@ PPM1_SLICE_corrected
 
 #SLICE: lambda(i) = e^(-6.26 + 2.3)
 #SLICE: for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-6.26 + 2.3)
+```
 
+```{r computing with dimyx}
+dim(pca1_im_km)
+rho_SLICE <- rhohat(ppp2_km, pca1_SLICE_im_km, method = "ratio", dimyx = 5000)
+plot(rho_SLICE, las=1, main = "rho vs covariate with dimyx")
 
+pred <- predict(rho_SLICE)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred, col=cl, las=1, main=NULL, gamma = 0.25)
+
+K1 <- density(ppp2_km, dimyx = 5000)
+K1_vs_pred <- pairs(K1, pred, plot = FALSE)
+plot(K1_vs_pred$pred ~ K1_vs_pred$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,.2),
+     main = "Predicted intensity vs Observed intensity w/ 1 to 1 diagonal") + abline(a=0, b = 1, col = "red")
+summary(as.data.frame(K1_vs_pred))
+
+PPM1_SLICE <- ppm(ppp2_km ~ pca1_SLICE_im_km)
+plot(effectfun(PPM1_SLICE, "pca1_SLICE_im_km", se.fit=TRUE), main=NULL, 
+     las=1)
+
+PPM1_SLICE_drop <- quad.ppm(PPM1_SLICE, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM1_SLICE_corrected <- ppm(PPM1_SLICE_drop ~ pca1_SLICE_im_km) 
+plot(effectfun(PPM1_SLICE_corrected, "pca1_SLICE_im_km", se.fit=TRUE), main= "Poisson Point Process Model", 
+     las=1)
+
+PPM1_SLICE_corrected
 ```
