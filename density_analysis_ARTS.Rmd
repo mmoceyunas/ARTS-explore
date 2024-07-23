@@ -6,6 +6,7 @@ date: "2024-07-18"
 
 ## Load library and dataset
 ```{r}
+library(terra)
 library(sf)
 library(ggplot2)
 library(spatstat)
@@ -13,7 +14,7 @@ library(nngeo)
 library(tidyverse) 
 
 nitze_sf <- st_read("nitze_image_bounding_boxes/nitzeTrainingLabel2023_Negative_meta3.shp")
-arts_sf = st_read("arts_pc_v.1.0.0.geojson")
+arts_sf = st_read("../rts_rep_analysis/pca/arts_pc_v.1.0.0.geojson")
 ```
 ```{r make valid}
 if (!all(st_is_valid(arts_sf))) {
@@ -149,11 +150,14 @@ nitze_bboxes_km <- rescale(nitze_bboxes_owin, 1000, "km")
 nitze_bbox2_km <- rescale(nitze_bbox_2_owin, 1000, "km")
 ```
 
-## Kernel density w/ overall
+## All Kernel Density
+
+### No Covariate
+
 ```{r default bandwidth}
 #density function computes an isotropic kernel intensity estimate of the point patter, bandwidth defines the kernel's window extent
 
-K1 <- density(u_c_ppp_km)
+K1 <- density(u_c_ppp_km, eps = 1)
 plot(K1, main='RTS density in Nitze bounds', las=1)
 contour(K1, add=TRUE)
 ```
@@ -194,15 +198,10 @@ plot(density.ppp(u_c_ppp_km, kernel = "epanechnikov", sigma = bw.ppl(u_c_ppp_km)
 hist(density.ppp(u_c_ppp_km, kernel = "epanechnikov", sigma = bw.ppl(u_c_ppp_km)), main=NULL, las=1)
 ```
 
-## Kernel density adjusted for covariate w/ overall
-```{r prep PCA 1}
-library(raster)
-pca <- raster("pca.tif")
+### Covariate Adjusted
 
-#changing crs
-crs(pca)
-new_crs <- "+proj=stere +lat_0=90 +lat_ts=70 +lon_0=-45 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs"
-crs(pca) <- new_crs
+```{r prep PCA 1}
+pca <- rast("../rts_rep_analysis/pca/pca.tif")
 
 #isolating band and cropping by bounding boxes
 band_index <- 1
@@ -211,9 +210,27 @@ pca1 <- mask(pca1, nitze_bboxes)
 plot(pca1)
 
 #convert to im
-install.packages("maptools", repos = "https://packagemanager.posit.co/cran/2023-10-13")
-library(maptools)
-pca1_im <- as.im.RasterLayer(pca1)
+as.im.SpatRaster1 <- function(X) {
+    X <- X[[1]]
+    rs <- terra::res(X)
+    e <- as.vector(terra::ext(X))
+    out <- list(
+        v = as.matrix(X, wide=TRUE)[nrow(X):1, ],
+        dim = dim(X)[1:2],
+        xrange = e[1:2],
+        yrange = e[3:4],
+        xstep = rs[1],
+        ystep = rs[2],
+        xcol = e[1] + (1:ncol(X)) * rs[1] + 0.5 * rs[1],
+        yrow = e[4] - (nrow(X):1) * rs[2] + 0.5 * rs[2],
+        type = "real",
+        units  = list(singular=units(X), plural=units(X), multiplier=1)
+    )
+    attr(out$units, "class") <- "unitname"
+    attr(out, "class") <- "im"
+    out
+}
+pca1_im <- as.im.SpatRaster1(pca1)
 class(pca1_im)
 hist(pca1_im, main=NULL, las=1)
 
@@ -225,8 +242,7 @@ na_count
 
 ```{r computing rho}
 marks(u_c_ppp_km) <- NULL
-nitze_bboxes_owin <- as.owin(nitze_bboxes)
-Window(u_c_ppp_km) <- nitze_bboxes_owin
+Window(u_c_ppp_km) <- nitze_bboxes_km
 
 rho <- rhohat(u_c_ppp_km, pca1_im_km, method = "ratio", eps = 1)
 plot(rho, las=1, main=NULL)
@@ -249,8 +265,7 @@ summary(as.data.frame(K1_vs_pred))
 plot(K1_vs_pred$pred ~ K1_vs_pred$K1, pch=20,
      xlab = "Observed intensity", 
      ylab = "Predicted intensity", 
-     col = rgb(0,0,0,0.1),
-     xlim = c(0, 1.6), ylim = c(0, 1.5)) + abline(a=0, b = 1, col = "red")
+     col = rgb(0,0,0,0.1)) + abline(a=0, b = 1, col = "red")
 ```
 
 ```{r poisson point process model}
@@ -262,46 +277,205 @@ plot(effectfun(PPM1, "pca1_im_km", se.fit=TRUE), main=NULL,
 PPM1
 ```
 
-## Kernel density w/ slices
-```{r default bandwidth} 
+## Subset Kernel Density
+
+### Pixel Size Troubleshooting
+
+```{r}
+for (eps_value in c(1/100, 1/10, 1, 2)) {
+  K1.2 <- density(u_c_ppp2_km, eps = eps_value)  #example slice
+  plot(K1.2, main=NULL, las=1)
+  contour(K1.2, add=TRUE)
+}
+```
+
+```{r}
+for (eps_value in c(1/100, 1/10, 1, 2)) {
+  rho.2 <- rhohat(u_c_ppp2_km, pca1.2_im_km, method = "ratio", eps = eps_value)
+  pred.2 <- predict(rho.2)
+  plot(pred.2, las=1, main=NULL)
+}
+```
+
+```{r}
+# pca1.2_im_100m = rescale(pca1.2_im, 100, 'hm')
+rho.2 <- rhohat(u_centroids_ppp_2, pca1.2_im, method = "ratio")
+pred.2 <- predict(rho.2)
+plot(pred.2, las=1, main=NULL)
+```
+
+```{r}
 K1.2 <- density(u_c_ppp2_km)  #example slice
 plot(K1.2, main=NULL, las=1)
 contour(K1.2, add=TRUE)
 
-```
-```{r estimate bandwidth}
-bw.diggle(u_c_ppp2_km) #suggested if detecting single tight cluster in midst of random noise
-bw.ppl(u_c_ppp2_km) #suggested if detecting pattern of predominantly tight clusters
-bw.scott(u_c_ppp2_km)
-```
-```{r testing diff bandwidths}
-par(mfrow=c(2,2))
-plot(density.ppp(u_c_ppp2_km, sigma = bw.diggle(u_c_ppp2_km),edge=T),
-     main = paste("diggle"))
+pca1.2 = crop(pca, nitze_bbox_2)
+pca1.2_im = as.im.SpatRaster1(pca1.2)
+pca1.2_im_km = rescale(pca1.2_im, 1000, 'km')
+rho.2 <- rhohat(u_c_ppp2_km, pca1.2_im_km, method = "ratio")
+plot(rho.2, las=1, main=NULL)
 
-plot(density.ppp(u_c_ppp2_km, sigma = bw.ppl(u_c_ppp2_km),edge=T),
-     main=paste("likelihood cross-validation"))
+pred.2 <- predict(rho.2)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred.2, col=cl, las=1, main=NULL, gamma = 0.25)
 
-plot(density.ppp(u_c_ppp2_km, sigma = bw.scott(u_c_ppp2_km)[2],edge=T),
-     main=paste("scott 1"))
+K1_vs_pred.2 <- pairs(K1.2, pred.2, plot = FALSE)
+summary(as.data.frame(K1_vs_pred.2))
 
-plot(density.ppp(u_c_ppp2_km, sigma = bw.scott(u_c_ppp2_km)[1],edge=T),
-     main=paste("scott 2"))
+plot(K1_vs_pred.2$pred.2 ~ K1_vs_pred.2$K1.2, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1)) + abline(a=0, b = 1, col = "red")
 ```
-```{r testing different kernels}
-par(mfrow=c(2,2))
-plot(density.ppp(u_c_ppp2_km, sigma = bw.ppl(u_c_ppp2_km),edge=T),
-     main=paste("Gaussian"))
-plot(density.ppp(u_c_ppp2_km, kernel = "epanechnikov", sigma = bw.ppl(u_c_ppp2_km),edge=T),
-     main=paste("Epanechnikov"))
-plot(density.ppp(u_c_ppp2_km, kernel = "quartic", sigma = bw.ppl(u_c_ppp2_km),edge=T),
-     main=paste("Quartic"))
-plot(density.ppp(u_c_ppp2_km, kernel = "disc", sigma = bw.ppl(u_c_ppp2_km),edge=T),
-     main=paste("Disc"))
+
+```{r}
+eps_value = 1
+K1.2 <- density(u_c_ppp2_km, eps = eps_value)  #example slice
+plot(K1.2, main=NULL, las=1)
+contour(K1.2, add=TRUE)
+
+pca1.2 = crop(pca, nitze_bbox_2)
+pca1.2_im = as.im.SpatRaster1(pca1.2)
+pca1.2_im_km = rescale(pca1.2_im, 1000, 'km')
+rho.2 <- rhohat(u_c_ppp2_km, pca1.2_im_km, method = "ratio")
+plot(rho.2, las=1, main=NULL)
+
+pred.2 <- predict(rho.2)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred.2, col=cl, las=1, main=NULL, gamma = 0.25)
+
+K1_vs_pred.2 <- pairs(K1.2, pred.2, plot = FALSE)
+summary(as.data.frame(K1_vs_pred.2))
+
+plot(K1_vs_pred.2$pred.2 ~ K1_vs_pred.2$K1.2, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1)) + abline(a=0, b = 1, col = "red")
 ```
-```{r my choice?}
-plot(density.ppp(u_c_ppp2_km, kernel = "epanechnikov", sigma = 1.167406,edge=T),
-     main=paste("RTS Kernel Density Estimate in Nitze Slice"))
+
+```{r}
+eps_value = 1
+K1.2 <- density(u_c_ppp2_km, eps = eps_value)  #example slice
+plot(K1.2, main=NULL, las=1)
+contour(K1.2, add=TRUE)
+
+pca1.2 = crop(pca, nitze_bbox_2)
+pca1.2_im = as.im.SpatRaster1(pca1.2)
+pca1.2_im_km = rescale(pca1.2_im, 1000, 'km')
+rho.2 <- rhohat(u_c_ppp2_km, pca1.2_im_km, method = "ratio", eps = eps_value)
+plot(rho.2, las=1, main=NULL)
+
+pred.2 <- predict(rho.2)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred.2, col=cl, las=1, main=NULL, gamma = 0.25)
+
+K1_vs_pred.2 <- pairs(K1.2, pred.2, plot = FALSE)
+summary(as.data.frame(K1_vs_pred.2))
+
+plot(K1_vs_pred.2$pred.2 ~ K1_vs_pred.2$K1.2, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1)) + abline(a=0, b = 1, col = "red")
+```
+
+```{r}
+eps_value = 1/10
+K1.2 <- density(u_c_ppp2_km)  #example slice
+plot(K1.2, main=NULL, las=1)
+contour(K1.2, add=TRUE)
+
+pca1.2 = crop(pca, nitze_bbox_2)
+pca1.2_im = as.im.SpatRaster1(pca1.2)
+pca1.2_im_km = rescale(pca1.2_im, 1000, 'km')
+rho.2 <- rhohat(u_c_ppp2_km, pca1.2_im_km, method = "ratio", eps = eps_value)
+plot(rho.2, las=1, main=NULL)
+
+pred.2 <- predict(rho.2)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred.2, col=cl, las=1, main=NULL, gamma = 0.25)
+
+K1_vs_pred.2 <- pairs(K1.2, pred.2, plot = FALSE)
+summary(as.data.frame(K1_vs_pred.2))
+
+plot(K1_vs_pred.2$pred.2 ~ K1_vs_pred.2$K1.2, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1)) + abline(a=0, b = 1, col = "red")
+```
+
+```{r}
+eps_value = 1/100
+K1.2 <- density(u_c_ppp2_km)  #example slice
+plot(K1.2, main=NULL, las=1)
+contour(K1.2, add=TRUE)
+
+pca1.2 = crop(pca, nitze_bbox_2)
+pca1.2_im = as.im.SpatRaster1(pca1.2)
+pca1.2_im_km = rescale(pca1.2_im, 1000, 'km')
+rho.2 <- rhohat(u_c_ppp2_km, pca1.2_im_km, method = "ratio", eps = eps_value)
+plot(rho.2, las=1, main=NULL)
+
+pred.2 <- predict(rho.2)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred.2, col=cl, las=1, main=NULL, gamma = 0.25)
+
+K1_vs_pred.2 <- pairs(K1.2, pred.2, plot = FALSE)
+summary(as.data.frame(K1_vs_pred.2))
+
+plot(K1_vs_pred.2$pred.2 ~ K1_vs_pred.2$K1.2, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1)) + abline(a=0, b = 1, col = "red")
+```
+
+```{r}
+# eps_value = 1/1000
+# K1.2 <- density(u_c_ppp2_km)  #example slice
+# plot(K1.2, main=NULL, las=1)
+# contour(K1.2, add=TRUE)
+# 
+# pca1.2 = crop(pca, nitze_bbox_2)
+# pca1.2_im = as.im.SpatRaster1(pca1.2)
+# pca1.2_im_km = rescale(pca1.2_im, 1000, 'km')
+# rho.2 <- rhohat(u_c_ppp2_km, pca1.2_im_km, method = "ratio", eps = eps_value)
+# plot(rho.2, las=1, main=NULL)
+# 
+# pred.2 <- predict(rho.2)
+# cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+# plot(pred.2, col=cl, las=1, main=NULL, gamma = 0.25)
+# 
+# K1_vs_pred.2 <- pairs(K1.2, pred.2, plot = FALSE)
+# summary(as.data.frame(K1_vs_pred.2))
+# 
+# plot(K1_vs_pred.2$pred.2 ~ K1_vs_pred.2$K1.2, pch=20,
+#      xlab = "Observed intensity", 
+#      ylab = "Predicted intensity", 
+#      col = rgb(0,0,0,0.1)) + abline(a=0, b = 1, col = "red")
+```
+
+```{r}
+eps_value = 1/10
+K1.2 <- density(u_c_ppp2_km, eps = eps_value)  #example slice
+plot(K1.2, main=NULL, las=1)
+contour(K1.2, add=TRUE)
+
+pca1.2 = crop(pca, nitze_bbox_2)
+pca1.2_im = as.im.SpatRaster1(pca1.2)
+pca1.2_im_km = rescale(pca1.2_im, 1000, 'km')
+rho.2 <- rhohat(u_c_ppp2_km, pca1.2_im_km, method = "ratio", eps = eps_value)
+plot(rho.2, las=1, main=NULL)
+
+pred.2 <- predict(rho.2)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred.2, col=cl, las=1, main=NULL, gamma = 0.25)
+
+K1_vs_pred.2 <- pairs(K1.2, pred.2, plot = FALSE)
+summary(as.data.frame(K1_vs_pred.2))
+
+plot(K1_vs_pred.2$pred.2 ~ K1_vs_pred.2$K1.2, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1)) + abline(a=0, b = 1, col = "red")
 ```
 
 ## Quadrat density w/ slice
