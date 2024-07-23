@@ -8,6 +8,7 @@ date: "2024-07-18"
 ```{r}
 library(sf)
 library(ggplot2)
+library(terra)
 library(spatstat)
 library(nngeo)
 library(tidyverse) 
@@ -152,7 +153,7 @@ bbox2_owin_km <- rescale(nitze_bbox_2_owin, 1000, "km")
 ```{r default bandwidth}
 #density function computes an isotropic kernel intensity estimate of the point patter, bandwidth defines the kernel's window extent
 
-K1 <- density(ppp_km)
+K1 <- density(ppp_km, eps = 1, rule.eps = "adjust eps")
 plot(K1, main='RTS density in Nitze bounds', las=1)
 contour(K1, add=TRUE)
 ```
@@ -196,12 +197,8 @@ hist(density.ppp(ppp_km, kernel = "epanechnikov", sigma = bw.ppl(ppp_km)), main=
 ## Kernel density adjusted for covariate w/ overall
 ```{r prep PCA 1}
 library(raster)
-pca_r <- raster("pca.tif")
-
-#changing crs
+pca_r <- rast("pca.tif")
 crs(pca_r)
-new_crs <- "+proj=stere +lat_0=90 +lat_ts=70 +lon_0=-45 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs +type=crs"
-crs(pca_r) <- new_crs
 
 #isolating band and cropping by bounding boxes
 band_index <- 1
@@ -210,9 +207,27 @@ pca1 <- crop(x = pca1_r, y = nitze_bboxes)
 plot(pca1)
 
 #convert to im
-install.packages("maptools", repos = "https://packagemanager.posit.co/cran/2023-10-13")
-library(maptools)
-pca1_im <- as.im.RasterLayer(pca1)
+as.im.SpatRaster1 <- function(X) {
+    X <- X[[1]]
+    rs <- terra::res(X)
+    e <- as.vector(terra::ext(X))
+    out <- list(
+        v = as.matrix(X, wide=TRUE)[nrow(X):1, ],
+        dim = dim(X)[1:2],
+        xrange = e[1:2],
+        yrange = e[3:4],
+        xstep = rs[1],
+        ystep = rs[2],
+        xcol = e[1] + (1:ncol(X)) * rs[1] + 0.5 * rs[1],
+        yrow = e[4] - (nrow(X):1) * rs[2] + 0.5 * rs[2],
+        type = "real",
+        units  = list(singular=units(X), plural=units(X), multiplier=1)
+    )
+    attr(out$units, "class") <- "unitname"
+    attr(out, "class") <- "im"
+    out
+}
+pca1_im <- as.im.SpatRaster1(pca1)
 class(pca1_im)
 hist(pca1_im, main=NULL, las=1)
 
@@ -386,25 +401,19 @@ pca1_SLICE <- crop(x = pca1, y = nitze_bbox_2)
 plot(pca1_SLICE)
 
 #convert to im
-pca1_SLICE_im <- as.im.RasterLayer(pca1_SLICE)
+pca1_SLICE_im <- as.im.SpatRaster1(pca1_SLICE)
 class(pca1_SLICE_im)
 
-#IGNORE
+#rescale
 pca1_SLICE_im_km <- rescale(pca1_SLICE_im, 1000, "km")
 plot(pca1_SLICE_im_km)
 ```
 
 ```{r computing rho}
-marks(u_centroids_ppp_2) <- NULL
-nitze_bbox_2_owin <- as.owin(nitze_bbox_2)
-Window(u_centroids_ppp_2) <-
-
-#IGNORE
 marks(ppp2_km) <- NULL
-Window(ppp2_km) <- nitze_bbox_2_owin
-crs(pca1_SLICE)
+Window(ppp2_km) <- bbox2_owin_km
 
-rho_SLICE <- rhohat(ppp2_km, pca1_SLICE_im_km, window = nitze_bbox_2_owin ,method = "ratio", eps =100)
+rho_SLICE <- rhohat(ppp2_km, pca1_SLICE_im_km, method = "ratio", eps =100, rule.eps = "adjust.eps")
 plot(rho_SLICE, las=1, main= "rho VS covariate")
 ```
 ```{r generating map of predicted RTS density if PCA1 was the sole driving process}
