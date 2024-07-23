@@ -153,7 +153,7 @@ bbox2_owin_km <- rescale(nitze_bbox_2_owin, 1000, "km")
 ```{r default bandwidth}
 #density function computes an isotropic kernel intensity estimate of the point patter, bandwidth defines the kernel's window extent
 
-K1 <- density(ppp_km, eps = 1, rule.eps = "adjust eps")
+K1 <- density(ppp_km, eps = 1, rule.eps = "adjust.eps")
 plot(K1, main='RTS density in Nitze bounds', las=1)
 contour(K1, add=TRUE)
 ```
@@ -242,7 +242,7 @@ marks(ppp_km) <- NULL
 nitze_bboxes_owin <- as.owin(nitze_bboxes)
 Window(ppp_km) <- nitze_bboxes_owin
 
-rho <- rhohat(ppp_km, pca1_im_km, method = "ratio", subset = nitze_bboxes_owin, eps = 50, rule.eps = "adjust.eps")
+rho <- rhohat(ppp_km, pca1_im_km, method = "ratio", eps = 1, rule.eps = "adjust.eps")
 plot(rho, las=1, main= "rho VS covariate")
 ```
 ```{r generating map of predicted RTS density if PCA1 was the sole driving process}
@@ -413,7 +413,7 @@ plot(pca1_SLICE_im_km)
 marks(ppp2_km) <- NULL
 Window(ppp2_km) <- bbox2_owin_km
 
-rho_SLICE <- rhohat(ppp2_km, pca1_SLICE_im_km, method = "ratio", eps =100, rule.eps = "adjust.eps")
+rho_SLICE <- rhohat(ppp2_km, pca1_SLICE_im_km, method = "ratio", eps =1, rule.eps = "adjust.eps")
 plot(rho_SLICE, las=1, main= "rho VS covariate")
 ```
 ```{r generating map of predicted RTS density if PCA1 was the sole driving process}
@@ -423,7 +423,7 @@ plot(pred, col=cl, las=1, main=NULL, gamma = 0.25)
 ```
 
 ```{r compare output of predicted to observed}
-K1 <- density(ppp2_km)
+K1 <- density(ppp2_km, eps = 1, rule.eps = "adjust.eps")
 K1_vs_pred <- pairs(K1, pred, plot = FALSE)
 plot(K1_vs_pred$pred ~ K1_vs_pred$K1, pch=20,
      xlab = "Observed intensity", 
@@ -436,18 +436,17 @@ plot(K1_vs_pred$pred ~ K1_vs_pred$K1, pch=20,
      xlab = "Observed intensity", 
      ylab = "Predicted intensity", 
      col = rgb(0,0,0,.2),
-     main = "Predicted intensity vs Observed intensity w/ 1 to 1 diagonal",
-     xlim = c(0, 1.5), ylim = c(0, 1.5)) + abline(a=0, b = 1, col = "red")
+     main = "Predicted intensity vs Observed intensity w/ 1 to 1 diagonal") + abline(a=0, b = 1, col = "red")
 ```
 
 ```{r poisson point process model}
 PPM1_SLICE <- ppm(ppp2_km ~ pca1_SLICE_im_km)
-plot(effectfun(PPM1, "pca1_SLICE_im_km", se.fit=TRUE), main=NULL, 
+plot(effectfun(PPM1_SLICE, "pca1_SLICE_im_km", se.fit=TRUE), main=NULL, 
      las=1)
 
-PPM1_drop <- quad.ppm(PPM1, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
-PPM1_corrected <- ppm(PPM1_drop ~ pca1_SLICE_im_km) 
-plot(effectfun(PPM1_corrected, "pca1_SLICE_im_km", se.fit=TRUE), main= "Poisson Point Process Model", 
+PPM1_SLICE_drop <- quad.ppm(PPM1_SLICE, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM1_SLICE_corrected <- ppm(PPM1_SLICE_drop ~ pca1_SLICE_im_km) 
+plot(effectfun(PPM1_SLICE_corrected, "pca1_SLICE_im_km", se.fit=TRUE), main= "Poisson Point Process Model", 
      las=1)
 
 PPM1_corrected
