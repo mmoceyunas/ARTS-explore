@@ -251,6 +251,7 @@ plot(pred, col=cl, las=1, main=NULL, gamma = 0.25)
 ```
 
 ```{r compare output of predicted to observed}
+K1 <- density(ppp_km, eps = 1, rule.eps = "adjust.eps")
 K1_vs_pred <- pairs(K1, pred, plot = FALSE)
 plot(K1_vs_pred$pred ~ K1_vs_pred$K1, pch=20,
      xlab = "Observed intensity", 
@@ -262,9 +263,8 @@ summary(as.data.frame(K1_vs_pred))
 plot(K1_vs_pred$pred ~ K1_vs_pred$K1, pch=20,
      xlab = "Observed intensity", 
      ylab = "Predicted intensity", 
-     col = rgb(0,0,0,.2),
-     main = "Predicted intensity vs Observed intensity w/ 1 to 1 diagonal",
-     xlim = c(0, 1.5), ylim = c(0, 1.5)) + abline(a=0, b = 1, col = "red")
+     col = rgb(0,0,0,.1),
+     main = "Predicted intensity vs Observed intensity w/ 1 to 1 diagonal") + abline(a=0, b = 1, col = "red")
 ```
 
 ```{r poisson point process model}
@@ -412,31 +412,35 @@ plot(pca1_SLICE_im_km)
 marks(ppp2_km) <- NULL
 Window(ppp2_km) <- bbox2_owin_km
 
-rho_SLICE <- rhohat(ppp2_km, pca1_SLICE_im_km, method = "ratio", eps =1, rule.eps = "adjust.eps")
+rho_SLICE <- rhohat(ppp2_km, pca1_SLICE_im_km, method = "ratio")
 plot(rho_SLICE, las=1, main= "rho VS covariate")
 ```
 
 ```{r generating map of predicted RTS density if PCA1 was the sole driving process}
-pred <- predict(rho_SLICE)
-cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
-plot(pred, col=cl, las=1, main=NULL, gamma = 0.25)
+pred_SLICE <- predict(rho_SLICE)
+cl_SLICE   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred_SLICE, col=cl_SLICE, las=1, main=NULL, gamma = 0.25)
 ```
 
 ```{r compare output of predicted to observed}
-K1 <- density(ppp2_km, eps = 1, rule.eps = "adjust.eps")
-K1_vs_pred <- pairs(K1, pred, plot = FALSE)
-plot(K1_vs_pred$pred ~ K1_vs_pred$K1, pch=20,
+K1_SLICE <- density(ppp2_km, eps = 1, rule.eps = "adjust.eps")
+K1_SLICEvs_pred <- pairs(K1_SLICE, pred_SLICE, plot = FALSE)
+plot(K1_SLICEvs_pred$pred_SLICE ~ K1_SLICEvs_pred$K1_SLICE, pch=20,
      xlab = "Observed intensity", 
      ylab = "Predicted intensity", 
      col = rgb(0,0,0,0.1))
 
-summary(as.data.frame(K1_vs_pred))
+summary(as.data.frame(K1_SLICEvs_pred))
 
-plot(K1_vs_pred$pred ~ K1_vs_pred$K1, pch=20,
+plot(K1_SLICEvs_pred$pred_SLICE ~ K1_SLICEvs_pred$K1_SLICE, pch=20,
      xlab = "Observed intensity", 
      ylab = "Predicted intensity", 
      col = rgb(0,0,0,.2),
      main = "Predicted intensity vs Observed intensity w/ 1 to 1 diagonal") + abline(a=0, b = 1, col = "red")
+
+
+dim(pred_SLICE)
+dim(K1_SLICE)
 ```
 
 ```{r poisson point process model}
