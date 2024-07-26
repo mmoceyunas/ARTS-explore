@@ -153,9 +153,21 @@ bbox2_owin_km <- rescale(nitze_bbox_2_owin, 1000, "km")
 
 ### No Covariate
 
+Estimate bandwidth
+```{r}
+sigma_value = bw.diggle(u_c_ppp_km) #suggested if detecting pattern of predominantly tight clusters
+plot(sigma_value)
+```
+
+```{r}
+sigma_value = bw.ppl(u_c_ppp_km) #suggested if detecting pattern of predominantly tight clusters
+plot(sigma_value)
+```
+
 ```{r default bandwidth}
 #density function computes an isotropic kernel intensity estimate of the point patter, bandwidth defines the kernel's window extent
 
+<<<<<<< HEAD
 K1 <- density(ppp_km, eps = 1)
 plot(K1, main='RTS density in Nitze bounds', las=1)
 contour(K1, add=TRUE)
@@ -198,6 +210,12 @@ plot(density.ppp(ppp_km, kernel = "epanechnikov", sigma = bw.ppl(ppp_km),edge=T)
 
 hist(density.ppp(ppp_km, kernel = "epanechnikov", sigma = bw.ppl(ppp_km)), main=NULL, las=1)
 ```
+=======
+K1 <- density(u_c_ppp_km, eps = 1, sigma = sigma_value)
+plot(K1, main='RTS density in Nitze bounds', las=1)
+contour(K1, add=TRUE)
+```
+>>>>>>> a3a8e7d647c92a47b00e999f7b82059082ecbb82
 
 ### Covariate Adjusted
 
@@ -209,6 +227,8 @@ band_index <- 1
 pca1_r <- pca_r[[band_index]]
 pca1 <- crop(x = pca1_r, y = nitze_bboxes)
 plot(pca1)
+pca2 <- pca[[2]]
+pca2 <- mask(pca2, nitze_bboxes)
 
 #convert to im
 as.im.SpatRaster1 <- function(X) {
@@ -234,20 +254,28 @@ as.im.SpatRaster1 <- function(X) {
 pca1_im <- as.im.SpatRaster1(pca1)
 class(pca1_im)
 hist(pca1_im, main=NULL, las=1)
+pca2_im <- as.im.SpatRaster1(pca2)
 
 #rescale
 pca1_im_km <-rescale(pca1_im, 1000, "km")
 na_count <- sum(is.na(pca1_im_km))
 na_count
+pca2_im_km <- rescale(pca2_im, 1000, "km")
 ```
 
 ```{r computing rho}
 marks(u_c_ppp_km) <- NULL
 Window(u_c_ppp_km) <- nitze_bboxes_km
 
+<<<<<<< HEAD
 rho <- rhohat(ppp_km, pca1_im_km, method = "ratio", eps = 1, rule.eps = "adjust.eps")
 plot(rho, las=1, main= "rho VS covariate")
+=======
+rho <- rhohat(u_c_ppp_km, pca1_im_km, method = "ratio", sigma = sigma_value)
+plot(rho, las=1, main=NULL)
+>>>>>>> a3a8e7d647c92a47b00e999f7b82059082ecbb82
 ```
+
 ```{r generating map of predicted RTS density if PCA1 was the sole driving process}
 pred <- predict(rho)
 cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
@@ -257,10 +285,6 @@ plot(pred, col=cl, las=1, main=NULL, gamma = 0.25)
 ```{r compare output of predicted to observed}
 K1 <- density(ppp_km, eps = 1, rule.eps = "adjust.eps")
 K1_vs_pred <- pairs(K1, pred, plot = FALSE)
-plot(K1_vs_pred$pred ~ K1_vs_pred$K1, pch=20,
-     xlab = "Observed intensity", 
-     ylab = "Predicted intensity", 
-     col = rgb(0,0,0,0.1))
 
 summary(as.data.frame(K1_vs_pred))
 
@@ -270,12 +294,29 @@ plot(K1_vs_pred$pred ~ K1_vs_pred$K1, pch=20,
      col = rgb(0,0,0,0.1)) + abline(a=0, b = 1, col = "red")
 ```
 
+<<<<<<< HEAD
 ```{r poisson point process model}
 pca1_im_lg <- log(pca1_im)
 
 PPM1 <- ppm(u_c_ppp_km ~ pca1_im_km)
 plot(effectfun(PPM1, "pca1_im_km", se.fit=TRUE), main=NULL, 
      las=1)
+=======
+# Poisson Point Process Model
+
+```{r poisson point process model}
+PPM1 <- ppm(u_c_ppp_km ~ pca1_im_km*pca2_im_km)
+
+for (pc2 in seq(-3.5, 4, by = 0.5)) {
+  plot(effectfun(PPM1, "pca1_im_km", pca2_im_km = pc2, se.fit=TRUE), main=NULL, 
+       las=1, legendargs=list(cex=0.8, xpd=TRUE, inset=c(1.01, 0) ))
+}
+
+for (pc1 in seq(-2, 4.5, by = 0.5)) {
+  plot(effectfun(PPM1, "pca2_im_km", pca1_im_km = pc1, se.fit=TRUE), main=NULL, 
+       las=1, legendargs=list(cex=0.8, xpd=TRUE, inset=c(1.01, 0) ))
+}
+>>>>>>> a3a8e7d647c92a47b00e999f7b82059082ecbb82
 
 PPM1_drop <- quad.ppm(PPM1, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
 PPM1_corrected <- ppm(PPM1_drop ~ pca1_im_km) 
@@ -294,6 +335,27 @@ PPM1_corrected
 ```{r}
 for (eps_value in c(1/100, 1/10, 1, 2)) {
   K1.2 <- density(u_c_ppp2_km, eps = eps_value)  #example slice
+  plot(K1.2, main=NULL, las=1)
+  contour(K1.2, add=TRUE)
+}
+```
+
+```{r}
+K1.2 <- density(u_c_ppp2_km, sigma = bw.scott, eps = 1)  #example slice
+plot(K1.2, main=NULL, las=1)
+contour(K1.2, add=TRUE)
+```
+
+```{r}
+bw.diggle(u_c_ppp2_km) #suggested if detecting single tight cluster in midst of random noise
+b = bw.ppl(u_c_ppp2_km) #suggested if detecting pattern of predominantly tight clusters
+plot(b)
+bw.scott(u_c_ppp2_km)
+```
+
+```{r}
+for (sigma_value in seq(1,5)) {
+  K1.2 <- density(u_c_ppp2_km, sigma = sigma_value, eps = 1)  #example slice
   plot(K1.2, main=NULL, las=1)
   contour(K1.2, add=TRUE)
 }
@@ -322,7 +384,7 @@ contour(K1.2, add=TRUE)
 pca1.2 = crop(pca, nitze_bbox_2)
 pca1.2_im = as.im.SpatRaster1(pca1.2)
 pca1.2_im_km = rescale(pca1.2_im, 1000, 'km')
-rho.2 <- rhohat(u_c_ppp2_km, pca1.2_im_km, method = "ratio")
+rho.2 <- rhohat(u_c_ppp2_km, pca1.2_im_km, method = "reweight")
 plot(rho.2, las=1, main=NULL)
 
 pred.2 <- predict(rho.2)
