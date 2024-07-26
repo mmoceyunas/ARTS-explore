@@ -167,55 +167,10 @@ plot(sigma_value)
 ```{r default bandwidth}
 #density function computes an isotropic kernel intensity estimate of the point patter, bandwidth defines the kernel's window extent
 
-<<<<<<< HEAD
-K1 <- density(ppp_km, eps = 1)
-plot(K1, main='RTS density in Nitze bounds', las=1)
-contour(K1, add=TRUE)
-```
-```{r estimate bandwidth}
-bw.diggle(ppp_km) #suggested if detecting single tight cluster in midst of random noise
-bw.ppl(ppp_km) #suggested if detecting pattern of predominantly tight clusters
-bw.scott(ppp_km)
-bw.frac(ppp_km)
-bw.CvL(ppp_km)
-```
-```{r testing diff bandwidths}
-par(mfrow=c(2,2))
-plot(density.ppp(ppp_km, sigma = bw.diggle(ppp_km),edge=T),
-     main = paste("diggle"))
-
-plot(density.ppp(ppp_km, sigma = bw.ppl(ppp_km),edge=T),
-     main=paste("likelihood cross-validation"))
-
-plot(density.ppp(ppp_km, sigma = bw.scott(ppp_km)[2],edge=T),
-     main=paste("scott 1"))
-
-plot(density.ppp(ppp_km, sigma = bw.scott(ppp_km)[1],edge=T),
-     main=paste("scott 2"))
-```
-```{r testing different kernels}
-par(mfrow=c(2,2))
-plot(density.ppp(ppp_km, sigma = bw.ppl(ppp_km),edge=T),
-     main=paste("Gaussian"))
-plot(density.ppp(ppp_km, kernel = "epanechnikov", sigma = bw.ppl(ppp_km),edge=T),
-     main=paste("Epanechnikov"))
-plot(density.ppp(ppp_km, kernel = "quartic", sigma = bw.ppl(ppp_km),edge=T),
-     main=paste("Quartic"))
-plot(density.ppp(ppp_km, kernel = "disc", sigma = bw.ppl(ppp_km),edge=T),
-     main=paste("Disc"))
-```
-```{r my choice?}
-plot(density.ppp(ppp_km, kernel = "epanechnikov", sigma = bw.ppl(ppp_km),edge=T),
-     main=paste("RTS Kernel Density Estimate in Nitze Bounds"))
-
-hist(density.ppp(ppp_km, kernel = "epanechnikov", sigma = bw.ppl(ppp_km)), main=NULL, las=1)
-```
-=======
 K1 <- density(u_c_ppp_km, eps = 1, sigma = sigma_value)
 plot(K1, main='RTS density in Nitze bounds', las=1)
 contour(K1, add=TRUE)
 ```
->>>>>>> a3a8e7d647c92a47b00e999f7b82059082ecbb82
 
 ### Covariate Adjusted
 
@@ -267,13 +222,8 @@ pca2_im_km <- rescale(pca2_im, 1000, "km")
 marks(u_c_ppp_km) <- NULL
 Window(u_c_ppp_km) <- nitze_bboxes_km
 
-<<<<<<< HEAD
-rho <- rhohat(ppp_km, pca1_im_km, method = "ratio", eps = 1, rule.eps = "adjust.eps")
-plot(rho, las=1, main= "rho VS covariate")
-=======
 rho <- rhohat(u_c_ppp_km, pca1_im_km, method = "ratio", sigma = sigma_value)
 plot(rho, las=1, main=NULL)
->>>>>>> a3a8e7d647c92a47b00e999f7b82059082ecbb82
 ```
 
 ```{r generating map of predicted RTS density if PCA1 was the sole driving process}
@@ -294,14 +244,7 @@ plot(K1_vs_pred$pred ~ K1_vs_pred$K1, pch=20,
      col = rgb(0,0,0,0.1)) + abline(a=0, b = 1, col = "red")
 ```
 
-<<<<<<< HEAD
-```{r poisson point process model}
-pca1_im_lg <- log(pca1_im)
 
-PPM1 <- ppm(u_c_ppp_km ~ pca1_im_km)
-plot(effectfun(PPM1, "pca1_im_km", se.fit=TRUE), main=NULL, 
-     las=1)
-=======
 # Poisson Point Process Model
 
 ```{r poisson point process model}
@@ -316,7 +259,6 @@ for (pc1 in seq(-2, 4.5, by = 0.5)) {
   plot(effectfun(PPM1, "pca2_im_km", pca1_im_km = pc1, se.fit=TRUE), main=NULL, 
        las=1, legendargs=list(cex=0.8, xpd=TRUE, inset=c(1.01, 0) ))
 }
->>>>>>> a3a8e7d647c92a47b00e999f7b82059082ecbb82
 
 PPM1_drop <- quad.ppm(PPM1, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
 PPM1_corrected <- ppm(PPM1_drop ~ pca1_im_km) 
