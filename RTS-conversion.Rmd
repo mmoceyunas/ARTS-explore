@@ -13,11 +13,15 @@ library(tidyverse)
 library(sp)
 
 #import the data, Replace this file directory with wherever your shapefile is exported to
-example = read_sf("C:/Users/jdean/Desktop/Boreal/AbruptThawMapping/RetrogressiveThawSlumps/ExternalData/input_data/Example.shp")
+Margo_RTS_v1 = read_sf("Margo-RTS-v1.0/Margo-RTS-v1.shp")
 
 #explore the dataset format
-names(example)
-head(example)
+names(Margo_RTS_v1)
+head(Margo_RTS_v1)
+
+#example subset code
+example_NegativeGrid = subset(example, example$TrainClass == "Negative")
+example_NotFurtherReview = subset(example, example$Notes != "Further_Review") #! = not
 
 #remove any layers that do not contain any information that we need.
 example=example %>% dplyr::select(-c(id, label))
