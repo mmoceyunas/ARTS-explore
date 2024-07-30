@@ -1,0 +1,59 @@
+---
+title: "RTS-conversion"
+output: html_document
+date: "2024-07-30"
+---
+
+#this is example code for how to convert the format of an RTS dataset into the proper form to be merged into the ARTS dataset. 
+```{r}
+#load packages
+library(dplyr)
+library(sf)
+library(tidyverse)
+library(sp)
+
+#import the data, Replace this file directory with wherever your shapefile is exported to
+example = read_sf("C:/Users/jdean/Desktop/Boreal/AbruptThawMapping/RetrogressiveThawSlumps/ExternalData/input_data/Example.shp")
+
+#explore the dataset format
+names(example)
+head(example)
+
+#remove any layers that do not contain any information that we need.
+example=example %>% dplyr::select(-c(id, label))
+
+#create a new column for creator lab
+example$CretrLb = "MMoceyunas, Woodwell Climate Research Center" #not sure if this should be Margo or Yili.... Ask at next meeting? 
+
+#if necessary, specify the base map source and resolution. 
+example$BsMpSrc = "Rapideye (5m) and Planetscope (3m)"
+example$BsMpRsl = 5 #fix format of resolution
+
+#create a new column for the Train class. Positive means there are RTS present and Negative means there are no RTS present. 
+example$TrnClss = "Positive"
+
+#create a new column for Label type which is polygon in this case
+example$LablTyp = "Polygon"
+
+#create a new column for Notes that is blank. If you have a column with notes to include, rename it in the next line of code
+example$Notes = NA
+
+#rename any files so they are the correct names. Examples of the correct names are listed in the next line of code. The shapefile names need to be abbreviated.
+#the format for this code is rename(new_name = old_name, new_name = old_name)
+example=example %>% dplyr::rename(CntrdLt = lat, CntrdLn = lon)
+
+#not actually necessary but I like to reorder my columns so everything looks the same. (the geometry column is where the spatial information is stored and does not need any changing)
+#if you don't have a Centroid latitude (CntrdLt) and Centroid longitude(CntrdLn) column, thats ok, the dataformatting.R code can create it for you by using calculate_centroids = TRUE (and remove CntrdLt and CntrdLn from the below line of code)
+example=example %>% dplyr::select(CntrdLt, CntrdLn, ReginNm, CretrLb, BasMpDt, BsMpSrc, BsMpRsl, TrnClss, LablTyp, Notes, geometry) 
+
+#make sure the data is in the correct coordinate system
+example = st_transform(example, 3413)
+
+#export the properly formatted shapefile
+sf::st_write(example, "C:/Users/jdean/Desktop/Boreal/AbruptThawMapping/RetrogressiveThawSlumps/ExternalData/input_data/Example_output.shp", overwrite = T,append =F)
+
+```
+
+#Now you can use this formatted shapefile to import into dataformatting.R. This code will merge the new RTS dataset with ARTS. 
+#https://github.com/whrc/ARTS/tree/main
+#Ask Jackie or Heidi for more help if you have trouble reformatting or setting up the dataformatting.R document!
