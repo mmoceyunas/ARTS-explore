@@ -13,48 +13,55 @@ library(tidyverse)
 library(sp)
 
 #import the data, Replace this file directory with wherever your shapefile is exported to
-Margo_RTS_v1 = read_sf("Margo-RTS-v1.0/Margo-RTS-v1.shp")
+Margo_RTS_v1 = read_sf("Margo-RTS-v1.0/Margo_RTS.shp")
+M_grid_subset = read_sf("ARTS-grid-subset-negative/ARTS_grid_subset.shp")
 
 #explore the dataset format
 names(Margo_RTS_v1)
 head(Margo_RTS_v1)
+names(M_grid_subset)
 
 #example subset code
-example_NegativeGrid = subset(example, example$TrainClass == "Negative")
-example_NotFurtherReview = subset(example, example$Notes != "Further_Review") #! = not
+Margo_RTS_v1_sub = subset(Margo_RTS_v1, Notes != "Further_review" | is.na(Notes)) #! = not
+M_negatives = subset(M_grid_subset, TrainClass == "Negative")
 
 #remove any layers that do not contain any information that we need.
-example=example %>% dplyr::select(-c(id, label))
+Margo_RTS_v1_sub=Margo_RTS_v1_sub %>% dplyr::select(-c(Confidence, Notes, Shape_Leng, Shape_Area))
+M_negatives=M_negatives %>% dplyr::select(-c(CreatorLab, grid_id, RTSCount, rts_suscep, id, large_grid, Shape_Leng, Shape_Area))
+
 
 #create a new column for creator lab
-example$CretrLb = "MMoceyunas, Woodwell Climate Research Center" #not sure if this should be Margo or Yili.... Ask at next meeting? 
-
-#if necessary, specify the base map source and resolution. 
-example$BsMpSrc = "Rapideye (5m) and Planetscope (3m)"
-example$BsMpRsl = 5 #fix format of resolution
+Margo_RTS_v1_sub$CretrLb = "MMoceyunas, Woodwell Climate Research Center" #not sure if this should be Margo or Yili.... Ask at next meeting? 
+M_negatives$CretrLb = "MMoceyunas, Woodwell Climate Research Center"
 
 #create a new column for the Train class. Positive means there are RTS present and Negative means there are no RTS present. 
-example$TrnClss = "Positive"
+Margo_RTS_v1_sub$TrnClss = "Positive"
 
 #create a new column for Label type which is polygon in this case
-example$LablTyp = "Polygon"
+Margo_RTS_v1_sub$LablTyp = "Polygon"
 
 #create a new column for Notes that is blank. If you have a column with notes to include, rename it in the next line of code
-example$Notes = NA
+Margo_RTS_v1_sub$Notes = NA
+M_negatives$Notes = NA
 
 #rename any files so they are the correct names. Examples of the correct names are listed in the next line of code. The shapefile names need to be abbreviated.
 #the format for this code is rename(new_name = old_name, new_name = old_name)
-example=example %>% dplyr::rename(CntrdLt = lat, CntrdLn = lon)
+Margo_RTS_v1_sub=Margo_RTS_v1_sub %>% dplyr::rename(ReginNm = RegionName, BasMpDt = BaseMapDat, BsMpSrc = BaseMapSou, BsMpRsl = BaseMapRes)
+M_negatives=M_negatives %>% dplyr::rename(ReginNm = RegionName, CntrdLt = CentroidLa, CntrdLn = CentroidLo, BasMpDt = BaseMapDat, BsMpSrc = BaseMapSou, BsMpRsl = BaseMapRes, TrnClss = TrainClass, LablTyp = LabelType)
+
 
 #not actually necessary but I like to reorder my columns so everything looks the same. (the geometry column is where the spatial information is stored and does not need any changing)
 #if you don't have a Centroid latitude (CntrdLt) and Centroid longitude(CntrdLn) column, thats ok, the dataformatting.R code can create it for you by using calculate_centroids = TRUE (and remove CntrdLt and CntrdLn from the below line of code)
-example=example %>% dplyr::select(CntrdLt, CntrdLn, ReginNm, CretrLb, BasMpDt, BsMpSrc, BsMpRsl, TrnClss, LablTyp, Notes, geometry) 
+Margo_RTS_v1_sub=Margo_RTS_v1_sub %>% dplyr::select(ReginNm, CretrLb, BasMpDt, BsMpSrc, BsMpRsl, TrnClss, LablTyp, Notes, geometry) 
+M_negatives=M_negatives %>% dplyr::select(CntrdLt, CntrdLn, ReginNm, CretrLb, BasMpDt, BsMpSrc, BsMpRsl, TrnClss, LablTyp, Notes, geometry) 
 
 #make sure the data is in the correct coordinate system
-example = st_transform(example, 3413)
+st_crs(Margo_RTS_v1_sub)
+Margo_RTS_v1_sub = st_transform(Margo_RTS_v1_sub, 3413)
+M_negatives = st_transform(M_negatives, 3413)
 
 #export the properly formatted shapefile
-sf::st_write(example, "C:/Users/jdean/Desktop/Boreal/AbruptThawMapping/RetrogressiveThawSlumps/ExternalData/input_data/Example_output.shp", overwrite = T,append =F)
+sf::st_write(M_negatives, "My_Datasets/M_negatives_output.shp", overwrite = T,append =F)
 
 ```
 
