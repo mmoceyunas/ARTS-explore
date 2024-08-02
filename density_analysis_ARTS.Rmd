@@ -259,14 +259,15 @@ summary(as.data.frame(K1_vs_pred))
 plot(K1_vs_pred$pred ~ K1_vs_pred$K1, pch=20,
      xlab = "Observed intensity", 
      ylab = "Predicted intensity", 
-     col = rgb(0,0,0,0.1)) + abline(a=0, b = 1, col = "red")
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
 ```
 
 
 # Poisson Point Process Model
 
 ```{r poisson point process model}
-PPM1 <- ppm(u_c_ppp_km ~ pca1_im_km*pca2_im_km)
+PPM1 <- ppm(ppp_km ~ pca1_im_km*pca2_im_km)
 
 for (pc2 in seq(-3.5, 4, by = 0.5)) {
   plot(effectfun(PPM1, "pca1_im_km", pca2_im_km = pc2, se.fit=TRUE), main=NULL, 
@@ -284,6 +285,12 @@ plot(effectfun(PPM1_corrected, "pca1_im_km", se.fit=TRUE), main= "Poisson Point 
      las=1)
 
 PPM1_corrected
+
+PPM2 <- ppm(ppp_km ~ 1)
+
+anova(PPM1, PPM2, test = "LRT")
+
+
 #lambda(i) = e^(-0.09 + 0.34)
 #for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-0.09 + 0.34) units
 ```
