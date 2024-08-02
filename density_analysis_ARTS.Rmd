@@ -14,7 +14,9 @@ library(nngeo)
 library(tidyverse) 
 
 nitze_sf <- st_read("nitze_image_bounding_boxes/nitzeTrainingLabel2023_Negative_meta3.shp")
-arts_sf = st_read("arts_pc_v.1.0.0.geojson")
+mocey_sf <- st_read("Moceyunas_box.geojson")
+
+arts_sf = st_read("ARTS_main_dataset_V.2.0.0.geojson")
 ```
 ```{r make valid}
 if (!all(st_is_valid(arts_sf))) {
@@ -30,6 +32,22 @@ nitze_bboxes = nitze_sf |>
   st_as_sf() |>
   rename(geometry = x)
 
+mocey_bboxes = mocey_sf |>
+  st_remove_holes() |>
+  st_union() |>
+  st_as_sf() |>
+  rename(geometry = x)
+
+bboxes <- rbind(nitze_bboxes, mocey_bboxes)
+
+bboxes = bboxes |>
+  st_remove_holes() |>
+  st_union() |>
+  st_as_sf() |>
+  rename(geometry = x)
+
+plot(bboxes)
+
 nitze_bbox_2 = nitze_sf |> #example slice
   st_remove_holes() |>
   st_union() |>
@@ -39,10 +57,10 @@ nitze_bbox_2 = nitze_sf |> #example slice
   slice(2)
 ```
 ```{r intersection}
-arts_nitze = arts_sf |>
+arts_bboxes = arts_sf |>
   filter(
     map_lgl(
-      st_intersects(arts_sf, nitze_bboxes, sparse = TRUE), 
+      st_intersects(arts_sf, bboxes, sparse = TRUE), 
       ~ length(.x) > 0
     )
   )
@@ -57,10 +75,10 @@ arts_nitze_2 = arts_sf |> #example slice
 ```
 ```{r check with plots}
 ggplot() + 
-  geom_sf(data = nitze_bboxes,
-          aes(color = 'Nitze BBoxes',
-              fill = 'Nitze BBoxes')) + 
-  geom_sf(data = arts_nitze, 
+  geom_sf(data = bboxes,
+          aes(color = 'BBoxes',
+              fill = 'BBoxes')) + 
+  geom_sf(data = arts_bboxes, 
            aes(color = 'ARTS',
                fill = 'ARTS'),
           size = 0.2) +
@@ -87,7 +105,7 @@ ggplot() +                      #example slice
 
 ## Convert to Centroids
 ```{r convert to points}
-arts_nitze_centroids = arts_nitze |>
+arts_bboxes_centroids = arts_bboxes |>
   st_drop_geometry() |>
     mutate(
         geometry = map2(
@@ -118,8 +136,8 @@ arts_nitze_centroids_2 = arts_nitze_2 |>  #example slice
 ```
 
 ```{r convert to ppp}
-centroids_ppp = nitze_bboxes |>
-  rbind(arts_nitze_centroids) |> # add Nitze bboxes as first row prior to conversion to ppp so that it will be taken as the window for further analyses
+centroids_ppp = bboxes |>
+  rbind(arts_bboxes_centroids) |> # add Nitze bboxes as first row prior to conversion to ppp so that it will be taken as the window for further analyses
   as.ppp()
 
 centroids_ppp_2 = nitze_bbox_2 |> #example slice
@@ -128,14 +146,14 @@ centroids_ppp_2 = nitze_bbox_2 |> #example slice
 ```
 
 ```{r uniqueness necessary?}
-u_centroids_ppp <- unique(centroids_ppp, warn = TRUE)
-u_centroids_ppp_2 <- unique(centroids_ppp_2, warn = TRUE) #example slice
+u_c_ppp <- unique(centroids_ppp, warn = TRUE)
+u_c_ppp_2 <- unique(centroids_ppp_2, warn = TRUE) #example slice
 ```
 
 ```{r data prep}
-marks(u_centroids_ppp)  <- NULL
-nitze_bboxes_owin <- as.owin(nitze_bboxes)
-Window(u_centroids_ppp) <- nitze_bboxes_owin
+marks(u_c_ppp)  <- NULL
+bboxes_owin <- as.owin(bboxes)
+Window(u_c_ppp) <- bboxes_owin
 
 marks(u_centroids_ppp_2)  <- NULL     #example slice
 nitze_bbox_2_owin <- as.owin(nitze_bbox_2)
@@ -143,9 +161,9 @@ Window(u_centroids_ppp_2) <- nitze_bbox_2_owin
 plot(u_centroids_ppp_2, main=NULL, cols=rgb(0,0,0,.2), pch=20)
 
 #rescale
-ppp_km <- rescale(u_centroids_ppp, 1000, "km")
-ppp2_km <- rescale(u_centroids_ppp_2, 1000, "km")
-bboxes_owin_km <- rescale(nitze_bboxes_owin, 1000, "km")
+ppp_km <- rescale(u_c_ppp, 1000, "km")
+ppp2_km <- rescale(u_c_ppp2, 1000, "km")
+bboxes_owin_km <- rescale(bboxes_owin, 1000, "km")
 bbox2_owin_km <- rescale(nitze_bbox_2_owin, 1000, "km")
 ```
 
@@ -155,19 +173,19 @@ bbox2_owin_km <- rescale(nitze_bbox_2_owin, 1000, "km")
 
 Estimate bandwidth
 ```{r}
-sigma_value = bw.diggle(u_c_ppp_km) #suggested if detecting pattern of predominantly tight clusters
+sigma_value = bw.diggle(ppp_km) #suggested if detecting pattern of predominantly tight clusters
 plot(sigma_value)
 ```
 
 ```{r}
-sigma_value = bw.ppl(u_c_ppp_km) #suggested if detecting pattern of predominantly tight clusters
+sigma_value = bw.ppl(ppp_km) #suggested if detecting pattern of predominantly tight clusters
 plot(sigma_value)
 ```
 
 ```{r default bandwidth}
 #density function computes an isotropic kernel intensity estimate of the point patter, bandwidth defines the kernel's window extent
 
-K1 <- density(u_c_ppp_km, eps = 1, sigma = sigma_value)
+K1 <- density(ppp_km, eps = 1, sigma = sigma_value)
 plot(K1, main='RTS density in Nitze bounds', las=1)
 contour(K1, add=TRUE)
 ```
@@ -175,15 +193,15 @@ contour(K1, add=TRUE)
 ### Covariate Adjusted
 
 ```{r prep PCA 1}
-pca <- rast("../rts_rep_analysis/pca/pca.tif")
+pca_r <- rast("pca.tif")
 
 #isolating band and cropping by bounding boxes
 band_index <- 1
 pca1_r <- pca_r[[band_index]]
-pca1 <- crop(x = pca1_r, y = nitze_bboxes)
+pca1 <- crop(x = pca1_r, y = bboxes)
 plot(pca1)
 pca2 <- pca[[2]]
-pca2 <- mask(pca2, nitze_bboxes)
+pca2 <- mask(pca2, bboxes)
 
 #convert to im
 as.im.SpatRaster1 <- function(X) {
@@ -219,10 +237,10 @@ pca2_im_km <- rescale(pca2_im, 1000, "km")
 ```
 
 ```{r computing rho}
-marks(u_c_ppp_km) <- NULL
-Window(u_c_ppp_km) <- nitze_bboxes_km
+marks(ppp_km) <- NULL
+Window(ppp_km) <- bboxes_owin_km
 
-rho <- rhohat(u_c_ppp_km, pca1_im_km, method = "ratio", sigma = sigma_value)
+rho <- rhohat(ppp_km, pca1_im_km, method = "ratio", sigma = sigma_value)
 plot(rho, las=1, main=NULL)
 ```
 
