@@ -167,9 +167,9 @@ bboxes_owin_km <- rescale(bboxes_owin, 1000, "km")
 bbox2_owin_km <- rescale(nitze_bbox_2_owin, 1000, "km")
 ```
 
-## All Kernel Density
+### All Kernel Density
 
-### No Covariate
+## No Covariate
 
 Estimate bandwidth
 ```{r}
@@ -186,18 +186,19 @@ plot(sigma_value)
 #density function computes an isotropic kernel intensity estimate of the point patter, bandwidth defines the kernel's window extent
 
 K1 <- density(ppp_km, eps = 1, sigma = sigma_value)
-plot(K1, main='RTS density in Nitze bounds', las=1)
+plot(K1, main='RTS density in bounding boxes', las=1)
 contour(K1, add=TRUE)
 ```
 
 ## Covariate Adjusted - PCA 1
-
 ```{r prep PCA 1}
 pca_r <- rast("pca.tif")
+print(pca_r)
 
 #isolating band and cropping by bounding boxes
 band_index <- 1
-pca1_r <- pca_r[[band_index]]
+
+pca1_r <- pca_r[[1]]
 pca1 <- crop(x = pca1_r, y = bboxes)
 plot(pca1)
 
@@ -362,7 +363,7 @@ anova(PPM2, PPM_reg, test = "LRT")
 #for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-0.09 + 0.34) units
 ```
 
-# Covariate Adjusted - PCA 3
+## Covariate Adjusted - PCA 3
 
 ```{r computing rho}
 rho3 <- rhohat(ppp_km, pca3_im_km, method = "ratio", sigma = sigma_value)
@@ -414,6 +415,55 @@ anova(PPM2, PPM_reg, test = "LRT")
 #lambda(i) = e^(-0.09 + 0.34)
 #for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-0.09 + 0.34) units
 ```
+
+## Covariate Adjusted - PCA1 + PCA2
+```{r prep PCA 1+2}
+band1 <- subset(pca_r, 1)
+band2 <- subset(pca_r, 2)
+band12 <- c(band1, band2)
+band12 <- mask(band12, bboxes)
+band12_im <- as.im.SpatRaster1(band12)
+band12_im_km <-rescale(band12_im, 1000, "km")
+```
+
+```{r computing rho}
+marks(ppp_km) <- NULL
+Window(ppp_km) <- bboxes_owin_km
+
+rho12 <- rhohat(ppp_km, band12_im_km, method = "ratio", sigma = sigma_value)
+plot(rho12, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+pred12 <- predict(rho12)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred12, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+```{r compare output of predicted to observed}
+K1_vs_pred12 <- pairs(K1, pred12, plot = FALSE)
+
+summary(as.data.frame(K1_vs_pred12))
+
+plot(K1_vs_pred12$pred12 ~ K1_vs_pred12$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
+```
+```{r poisson point process model}
+PPM12 <- ppm(ppp_km ~ band12_im_km)
+
+PPM12_drop <- quad.ppm(PPM12, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM12_corrected <- ppm(PPM12_drop ~ band12_im_km) 
+plot(effectfun(PPM12_corrected, "band12_im_km", se.fit=TRUE), main= "Poisson Point Process Model for PCA1 and PCA2", 
+     las=1)
+
+PPM12_corrected
+
+anova(PPM12_corrected, PPM_reg, test = "LRT")
+#lambda(i) = e^(-0.09 + 0.34)
+#for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-0.09 + 0.34) units
+```
+
 ## Subset Kernel Density
 
 ### Pixel Size Troubleshooting
