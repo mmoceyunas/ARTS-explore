@@ -16,7 +16,7 @@ library(tidyverse)
 nitze_sf <- st_read("nitze_image_bounding_boxes/nitzeTrainingLabel2023_Negative_meta3.shp")
 mocey_sf <- st_read("Moceyunas_box.geojson")
 
-arts_sf = st_read("ARTS_main_dataset_V2.0.0.geojson")
+arts_sf = st_read("ARTS_main_dataset.geojson")
 ```
 ```{r make valid}
 if (!all(st_is_valid(arts_sf))) {
@@ -210,6 +210,14 @@ pca3 <- pca_r[[3]]
 pca3 <- mask(pca3, bboxes)
 plot(pca3)
 
+pca4 <- pca_r[[4]]
+pca4 <- mask(pca4, bboxes)
+plot(pca4)
+
+pca5 <- pca_r[[5]]
+pca5 <- mask(pca5, bboxes)
+plot(pca5)
+
 #convert to im
 as.im.SpatRaster1 <- function(X) {
     X <- X[[1]]
@@ -243,6 +251,14 @@ pca3_im <- as.im.SpatRaster1(pca3)
 class(pca3_im)
 hist(pca3_im, main=NULL, las=1)
 
+pca4_im <- as.im.SpatRaster1(pca4)
+class(pca4_im)
+hist(pca4_im, main=NULL, las=1)
+
+pca5_im <- as.im.SpatRaster1(pca5)
+class(pca5_im)
+hist(pca5_im, main=NULL, las=1)
+
 #rescale
 pca1_im_km <-rescale(pca1_im, 1000, "km")
 na_count <- sum(is.na(pca1_im_km))
@@ -254,6 +270,14 @@ na_count
 
 pca3_im_km <-rescale(pca3_im, 1000, "km")
 na_count <- sum(is.na(pca3_im_km))
+na_count
+
+pca4_im_km <-rescale(pca4_im, 1000, "km")
+na_count <- sum(is.na(pca4_im_km))
+na_count
+
+pca5_im_km <-rescale(pca5_im, 1000, "km")
+na_count <- sum(is.na(pca5_im_km))
 na_count
 ```
 ```{r computing rho}
@@ -385,36 +409,113 @@ plot(K1_vs_pred3$pred3 ~ K1_vs_pred3$K1, pch=20,
      xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
 ```
 
-### Poisson Point Process Model - PCA 1
+### Poisson Point Process Model - PCA 3
 
 ```{r poisson point process model}
-PPM2 <- ppm(ppp_km ~ pca2_im_km*pca2_im_km)
+PPM3 <- ppm(ppp_km ~ pca3_im_km)
 
-for (pc2 in seq(-3.5, 4, by = 0.5)) {
-  plot(effectfun(PPM1, "pca1_im_km", pca2_im_km = pc2, se.fit=TRUE), main=NULL, 
-       las=1, legendargs=list(cex=0.8, xpd=TRUE, inset=c(1.01, 0) ))
-}
-
-for (pc1 in seq(-2, 4.5, by = 0.5)) {
-  plot(effectfun(PPM1, "pca2_im_km", pca1_im_km = pc1, se.fit=TRUE), main=NULL, 
-       las=1, legendargs=list(cex=0.8, xpd=TRUE, inset=c(1.01, 0) ))
-}
-
-PPM2_drop <- quad.ppm(PPM2, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
-PPM2_corrected <- ppm(PPM2_drop ~ pca2_im_km) 
-plot(effectfun(PPM2_corrected, "pca2_im_km", se.fit=TRUE), main= "Poisson Point Process Model", 
+PPM3_drop <- quad.ppm(PPM3, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM3_corrected <- ppm(PPM3_drop ~ pca3_im_km) 
+plot(effectfun(PPM3_corrected, "pca3_im_km", se.fit=TRUE), main= "Poisson Point Process Model", 
      las=1)
 
-PPM2_corrected
+PPM3_corrected
 
 PPM_reg <- ppm(ppp_km ~ 1)
 
-anova(PPM2, PPM_reg, test = "LRT")
+anova(PPM3, PPM_reg, test = "LRT")
 
 
 #lambda(i) = e^(-0.09 + 0.34)
 #for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-0.09 + 0.34) units
 ```
+
+## Covariate Adjusted - PCA 4
+
+```{r computing rho}
+rho4 <- rhohat(ppp_km, pca4_im_km, method = "ratio", sigma = sigma_value)
+plot(rho4, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+pred4 <- predict(rho4)
+plot(pred4, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+```{r compare output of predicted to observed}
+K1_vs_pred4 <- pairs(K1, pred4, plot = FALSE)
+
+summary(as.data.frame(K1_vs_pred4))
+
+plot(K1_vs_pred4$pred4 ~ K1_vs_pred4$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
+```
+
+### Poisson Point Process Model - PCA 4
+
+```{r poisson point process model}
+PPM4 <- ppm(ppp_km ~ pca4_im_km)
+
+PPM4_drop <- quad.ppm(PPM4, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM4_corrected <- ppm(PPM4_drop ~ pca4_im_km) 
+plot(effectfun(PPM4_corrected, "pca4_im_km", se.fit=TRUE), main= "Poisson Point Process Model", 
+     las=1)
+
+PPM4_corrected
+
+PPM_reg <- ppm(ppp_km ~ 1)
+
+anova(PPM4, PPM_reg, test = "LRT")
+
+
+#lambda(i) = e^(-0.09 + 0.34)
+#for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-0.09 + 0.34) units
+```
+## Covariate Adjusted - PCA 5
+
+```{r computing rho}
+rho5 <- rhohat(ppp_km, pca5_im_km, method = "ratio", sigma = sigma_value)
+plot(rho3, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+pred5 <- predict(rho5)
+plot(pred5, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+```{r compare output of predicted to observed}
+K1_vs_pred5 <- pairs(K1, pred5, plot = FALSE)
+
+summary(as.data.frame(K1_vs_pred5))
+
+plot(K1_vs_pred5$pred5 ~ K1_vs_pred5$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
+```
+
+### Poisson Point Process Model - PCA 5
+
+```{r poisson point process model}
+PPM5 <- ppm(ppp_km ~ pca5_im_km)
+
+PPM5_drop <- quad.ppm(PPM5, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM5_corrected <- ppm(PPM5_drop ~ pca5_im_km) 
+plot(effectfun(PPM5_corrected, "pca5_im_km", se.fit=TRUE), main= "Poisson Point Process Model", 
+     las=1)
+
+PPM5_corrected
+
+PPM_reg <- ppm(ppp_km ~ 1)
+
+anova(PPM5, PPM_reg, test = "LRT")
+
+
+#lambda(i) = e^(-0.09 + 0.34)
+#for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-0.09 + 0.34) units
+```
+
+
 
 ## Covariate Adjusted - PCA1 + PCA2
 ```{r prep PCA 1+2}
@@ -459,7 +560,7 @@ plot(effectfun(PPM12_corrected, "band12_im_km", se.fit=TRUE), main= "Poisson Poi
 
 PPM12_corrected
 
-anova(PPM12_corrected, PPM_reg, test = "LRT")
+anova(PPM12, PPM_reg, test = "LRT")
 #lambda(i) = e^(-0.09 + 0.34)
 #for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-0.09 + 0.34) units
 ```
