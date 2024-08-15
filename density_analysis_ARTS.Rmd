@@ -565,6 +565,206 @@ anova(PPM12, PPM_reg, test = "LRT")
 #for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-0.09 + 0.34) units
 ```
 
+## Covariate Adjusted - PCA3 + PCA5
+```{r prep PCA 1+2}
+band3 <- subset(pca_r, 3)
+band5 <- subset(pca_r, 5)
+band35 <- c(band3, band5)
+band35 <- mask(band35, bboxes)
+band35_im <- as.im.SpatRaster1(band35)
+band35_im_km <-rescale(band35_im, 1000, "km")
+```
+
+```{r computing rho}
+marks(ppp_km) <- NULL
+Window(ppp_km) <- bboxes_owin_km
+
+rho35 <- rhohat(ppp_km, band35_im_km, method = "ratio", sigma = sigma_value)
+plot(rho35, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+pred35 <- predict(rho35)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred35, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+```{r compare output of predicted to observed}
+K1_vs_pred35 <- pairs(K1, pred35, plot = FALSE)
+
+summary(as.data.frame(K1_vs_pred35))
+
+plot(K1_vs_pred35$pred35 ~ K1_vs_pred35$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
+```
+```{r poisson point process model}
+PPM35 <- ppm(ppp_km ~ band35_im_km)
+
+PPM35_drop <- quad.ppm(PPM35, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM35_corrected <- ppm(PPM35_drop ~ band35_im_km) 
+plot(effectfun(PPM35_corrected, "band35_im_km", se.fit=TRUE), main= "Poisson Point Process Model for PCA3 and PCA5", 
+     las=1)
+
+PPM35_corrected
+
+anova(PPM35, PPM_reg, test = "LRT")
+#lambda(i) = e^(-0.09 + 0.34)
+#for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-0.09 + 0.34) units
+```
+
+
+## Covariate Adjusted - PCA2 + PCA3 + PCA5
+```{r prep PCA 1+2}
+band3 <- subset(pca_r, 3)
+band4 <- subset(pca_r, 4)
+band5 <- subset(pca_r, 5)
+band345 <- c(band3, band5, band4)
+band345 <- mask(band345, bboxes)
+band345_im <- as.im.SpatRaster1(band345)
+band345_im_km <-rescale(band345_im, 1000, "km")
+```
+
+```{r computing rho}
+marks(ppp_km) <- NULL
+Window(ppp_km) <- bboxes_owin_km
+
+rho345 <- rhohat(ppp_km, band345_im_km, method = "ratio", sigma = sigma_value)
+plot(rho345, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+pred345 <- predict(rho345)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred345, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+```{r compare output of predicted to observed}
+K1_vs_pred345 <- pairs(K1, pred345, plot = FALSE)
+
+summary(as.data.frame(K1_vs_pred345))
+
+plot(K1_vs_pred345$pred345 ~ K1_vs_pred345$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
+```
+```{r poisson point process model}
+PPM345 <- ppm(ppp_km ~ band345_im_km)
+
+PPM345_drop <- quad.ppm(PPM345, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM345_corrected <- ppm(PPM345_drop ~ band345_im_km) 
+plot(effectfun(PPM345_corrected, "band345_im_km", se.fit=TRUE), main= "Poisson Point Process Model for PCA3, PCA4, and PCA5", 
+     las=1)
+
+PPM345_corrected
+
+anova(PPM345, PPM_reg, test = "LRT")
+#lambda(i) = e^(-0.09 + 0.34)
+#for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-0.09 + 0.34) units
+```
+
+
+
+## Covariate Adjusted - PCA2 + PCA3 + PCA4 + PCA5
+```{r prep PCA 1+2}
+band2345 <- c(pca2, pca3, pca4, pca5)
+band2345 <- mask(band2345, bboxes)
+band2345_im <- as.im.SpatRaster1(band2345)
+band2345_im_km <-rescale(band2345_im, 1000, "km")
+```
+
+```{r computing rho}
+marks(ppp_km) <- NULL
+Window(ppp_km) <- bboxes_owin_km
+
+rho2345 <- rhohat(ppp_km, band2345_im_km, method = "ratio", sigma = sigma_value)
+
+plot(rho2345, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+pred2345 <- predict(rho2345)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred2345, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+```{r compare output of predicted to observed}
+K1_vs_pred2345 <- pairs(K1, pred2345, plot = FALSE)
+
+summary(as.data.frame(K1_vs_pred2345))
+
+plot(K1_vs_pred2345$pred2345 ~ K1_vs_pred2345$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
+```
+```{r poisson point process model}
+PPM2345 <- ppm(ppp_km ~ band2345_im_km)
+
+PPM2345_drop <- quad.ppm(PPM2345, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM2345_corrected <- ppm(PPM2345_drop ~ band2345_im_km) 
+plot(effectfun(PPM2345_corrected, "band2345_im_km", se.fit=TRUE), main= "Poisson Point Process Model for PCA2, PCA3, PCA4, and PCA5", 
+     las=1)
+
+PPM2345_corrected
+
+anova(PPM2345, PPM_reg, test = "LRT")
+#lambda(i) = e^(-0.09 + 0.34)
+#for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-0.09 + 0.34) units
+```
+
+
+
+## Covariate Adjusted - PCA1 + PCA2 + PCA3 + PCA4 + PCA5
+```{r prep PCA 1+2}
+band12345 <- c(pca1_r, pca2, pca3, pca4, pca5)
+band12345 <- mask(band12345, bboxes)
+band12345_im <- as.im.SpatRaster1(band12345)
+band12345_im_km <-rescale(band12345_im, 1000, "km")
+```
+
+```{r computing rho}
+marks(ppp_km) <- NULL
+Window(ppp_km) <- bboxes_owin_km
+
+rho12345 <- rhohat(ppp_km, band12345_im_km, method = "ratio", sigma = sigma_value)
+
+plot(rho12345, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+pred12345 <- predict(rho12345)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred12345, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+```{r compare output of predicted to observed}
+K1_vs_pred12345 <- pairs(K1, pred12345, plot = FALSE)
+
+summary(as.data.frame(K1_vs_pred12345))
+
+plot(K1_vs_pred12345$pred12345 ~ K1_vs_pred12345$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
+```
+```{r poisson point process model}
+PPM12345 <- ppm(ppp_km ~ band12345_im_km)
+
+PPM12345_drop <- quad.ppm(PPM12345, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM12345_corrected <- ppm(PPM12345_drop ~ band12345_im_km) 
+plot(effectfun(PPM12345_corrected, "band12345_im_km", se.fit=TRUE), main= "Poisson Point Process Model for PCA2, PCA3, PCA4, and PCA5", 
+     las=1)
+
+PPM12345_corrected
+
+anova(PPM12345, PPM_reg, test = "LRT")
+
+#lambda(i) = e^(-0.09 + 0.34)
+#for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-0.09 + 0.34) units
+```
+
+
+
+
 ## Subset Kernel Density
 
 ### Pixel Size Troubleshooting
