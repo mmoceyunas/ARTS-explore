@@ -1,0 +1,647 @@
+---
+title: "kernel_density_analysis_for_RTS"
+output: html_document
+date: "2024-08-15"
+---
+
+## Load library, bounding boxes, and ARTS dataset
+```{r}
+library(terra)
+library(sf)
+library(ggplot2)
+library(spatstat)
+library(nngeo)
+library(tidyverse) 
+
+nitze_sf <- st_read("nitze_image_bounding_boxes/nitzeTrainingLabel2023_Negative_meta3.shp")
+mocey_sf <- st_read("Moceyunas_box.geojson")
+
+arts_sf = st_read("ARTS_main_dataset.geojson")
+```
+```{r make valid}
+if (!all(st_is_valid(arts_sf))) {
+  arts_sf = st_make_valid(arts_sf)
+}
+```
+
+## Simply Nitze/Moceyunas bounding boxes and find ARTS intersection
+```{r simplify overlap in nitze_sf}
+nitze_bboxes = nitze_sf |>
+  st_remove_holes() |>
+  st_union() |>
+  st_as_sf() |>
+  rename(geometry = x)
+mocey_bboxes = mocey_sf |>
+  st_remove_holes() |>
+  st_union() |>
+  st_as_sf() |>
+  rename(geometry = x)
+
+bboxes <- rbind(nitze_bboxes, mocey_bboxes)
+bboxes = bboxes |>
+  st_remove_holes() |>
+  st_union() |>
+  st_as_sf() |>
+  rename(geometry = x)
+plot(bboxes)
+```
+```{r intersection of ARTS and bounding boxes}
+arts_bboxes = arts_sf |>
+  filter(
+    map_lgl(
+      st_intersects(arts_sf, bboxes, sparse = TRUE), 
+      ~ length(.x) > 0
+    )
+  )
+```
+```{r check intersection with plots}
+ggplot() + 
+  geom_sf(data = bboxes,
+          aes(color = 'BBoxes',
+              fill = 'BBoxes')) + 
+  geom_sf(data = arts_bboxes, 
+           aes(color = 'ARTS',
+               fill = 'ARTS'),
+          size = 0.2) +
+  scale_color_manual(name = 'Dataset',
+                     values = c('red', 'black')) +
+  scale_fill_manual(name = 'Dataset',
+                     values = c('transparent', 'transparent')) +
+  theme(legend.position = 'bottom')
+```
+
+## Convert ARTS intersection to ppp ojbects
+```{r convert to centroids}
+arts_bboxes_centroids = arts_bboxes |>
+  st_drop_geometry() |>
+    mutate(
+        geometry = map2(
+            as.numeric(CentroidLon),
+            as.numeric(CentroidLat),
+            ~ st_point(c(.x, .y))
+            ) |>
+            st_sfc(crs = 4326) |> 
+            st_transform(crs = 3413)
+        ) |>
+  st_as_sf(crs = 3413) |>
+  select(geometry)
+  # select(UID) # ppp uses one column of the dataframe as labels ("marks"), and this column can be used to link back to the original dataset, if necessary
+```
+```{r convert centroids to ppp}
+centroids_ppp = bboxes |>
+  rbind(arts_bboxes_centroids) |> # add Nitze bboxes as first row prior to conversion to ppp so that it will be taken as the window for further analyses
+  as.ppp()
+u_c_ppp <- unique(centroids_ppp, warn = TRUE)
+```
+```{r prep data for analysis}
+marks(u_c_ppp)  <- NULL
+bboxes_owin <- as.owin(bboxes)
+Window(u_c_ppp) <- bboxes_owin
+
+#rescale
+ppp_km <- rescale(u_c_ppp, 1000, "km")
+bboxes_owin_km <- rescale(bboxes_owin, 1000, "km")
+```
+
+# All Kernel Density
+## No Covariate
+Estimate bandwidth
+```{r}
+sigma_value = bw.diggle(ppp_km) #suggested if detecting pattern of predominantly tight clusters
+plot(sigma_value)
+```
+```{r}
+sigma_value = bw.ppl(ppp_km) #suggested if detecting pattern of predominantly tight clusters
+plot(sigma_value)
+```
+```{r default bandwidth}
+#density function computes an isotropic kernel intensity estimate of the point patter, bandwidth defines the kernel's window extent
+
+K1 <- density(ppp_km, eps = 1, sigma = sigma_value)
+plot(K1, main='RTS density in bounding boxes', las=1)
+contour(K1, add=TRUE)
+```
+
+## Covariate Adjusted - Prepping Individual Rasters
+```{r prep PCA individual rasters}
+pca_r <- rast("pca.tif")
+print(pca_r)
+
+#isolating band and cropping by bounding boxes
+band_index <- 1
+
+pca1_r <- pca_r[[1]]
+pca1 <- mask(pca1_r, bboxes)
+plot(pca1)
+
+pca2 <- pca_r[[2]]
+pca2 <- mask(pca2, bboxes)
+plot(pca2)
+
+pca3 <- pca_r[[3]]
+pca3 <- mask(pca3, bboxes)
+plot(pca3)
+
+pca4 <- pca_r[[4]]
+pca4 <- mask(pca4, bboxes)
+plot(pca4)
+
+pca5 <- pca_r[[5]]
+pca5 <- mask(pca5, bboxes)
+plot(pca5)
+
+#convert to im
+as.im.SpatRaster1 <- function(X) {
+    X <- X[[1]]
+    rs <- terra::res(X)
+    e <- as.vector(terra::ext(X))
+    out <- list(
+        v = as.matrix(X, wide=TRUE)[nrow(X):1, ],
+        dim = dim(X)[1:2],
+        xrange = e[1:2],
+        yrange = e[3:4],
+        xstep = rs[1],
+        ystep = rs[2],
+        xcol = e[1] + (1:ncol(X)) * rs[1] + 0.5 * rs[1],
+        yrow = e[4] - (nrow(X):1) * rs[2] + 0.5 * rs[2],
+        type = "real",
+        units  = list(singular=units(X), plural=units(X), multiplier=1)
+    )
+    attr(out$units, "class") <- "unitname"
+    attr(out, "class") <- "im"
+    out
+}
+pca1_im <- as.im.SpatRaster1(pca1)
+class(pca1_im)
+hist(pca1_im, main=NULL, las=1)
+
+pca2_im <- as.im.SpatRaster1(pca2)
+class(pca2_im)
+hist(pca2_im, main=NULL, las=1)
+
+pca3_im <- as.im.SpatRaster1(pca3)
+class(pca3_im)
+hist(pca3_im, main=NULL, las=1)
+
+pca4_im <- as.im.SpatRaster1(pca4)
+class(pca4_im)
+hist(pca4_im, main=NULL, las=1)
+
+pca5_im <- as.im.SpatRaster1(pca5)
+class(pca5_im)
+hist(pca5_im, main=NULL, las=1)
+
+#rescale
+pca1_im_km <-rescale(pca1_im, 1000, "km")
+na_count <- sum(is.na(pca1_im_km))
+na_count
+
+pca2_im_km <-rescale(pca2_im, 1000, "km")
+na_count <- sum(is.na(pca2_im_km))
+na_count
+
+pca3_im_km <-rescale(pca3_im, 1000, "km")
+na_count <- sum(is.na(pca3_im_km))
+na_count
+
+pca4_im_km <-rescale(pca4_im, 1000, "km")
+na_count <- sum(is.na(pca4_im_km))
+na_count
+
+pca5_im_km <-rescale(pca5_im, 1000, "km")
+na_count <- sum(is.na(pca5_im_km))
+na_count
+```
+## Covariate Adjusted - PCA 1
+```{r computing rho1}
+marks(ppp_km) <- NULL
+Window(ppp_km) <- bboxes_owin_km
+
+rho <- rhohat(ppp_km, pca1_im_km, method = "ratio", sigma = sigma_value)
+plot(rho, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+pred <- predict(rho)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+```{r compare output of predicted to observed}
+K1_vs_pred <- pairs(K1, pred, plot = FALSE)
+
+summary(as.data.frame(K1_vs_pred))
+
+plot(K1_vs_pred$pred ~ K1_vs_pred$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
+```
+### Poisson Point Process Model - PCA 1
+```{r poisson point process model}
+PPM1 <- ppm(ppp_km ~ pca1_im_km*pca2_im_km)
+
+for (pc2 in seq(-3.5, 4, by = 0.5)) {
+  plot(effectfun(PPM1, "pca1_im_km", pca2_im_km = pc2, se.fit=TRUE), main=NULL, 
+       las=1, legendargs=list(cex=0.8, xpd=TRUE, inset=c(1.01, 0) ))
+}
+
+for (pc1 in seq(-2, 4.5, by = 0.5)) {
+  plot(effectfun(PPM1, "pca2_im_km", pca1_im_km = pc1, se.fit=TRUE), main=NULL, 
+       las=1, legendargs=list(cex=0.8, xpd=TRUE, inset=c(1.01, 0) ))
+}
+
+PPM1_drop <- quad.ppm(PPM1, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM1_corrected <- ppm(PPM1_drop ~ pca1_im_km) 
+plot(effectfun(PPM1_corrected, "pca1_im_km", se.fit=TRUE), main= "Poisson Point Process Model", 
+     las=1)
+
+PPM1_corrected
+
+PPM_reg <- ppm(ppp_km ~ 1)
+
+anova(PPM1, PPM_reg, test = "LRT")
+#lambda(i) = e^(-0.09 + 0.34)
+#for every increase in one unit of the PCA1 density, the RTS point density increases by a factor of e^(-0.09 + 0.34) units
+```
+
+## Covariate Adjusted - PCA 2
+```{r computing rho2}
+rho2 <- rhohat(ppp_km, pca2_im_km, method = "ratio", sigma = sigma_value)
+plot(rho2, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA2 was the sole driving process}
+pred2 <- predict(rho2)
+cl2   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred2, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+```{r compare output of predicted to observed}
+K1_vs_pred2 <- pairs(K1, pred2, plot = FALSE)
+
+summary(as.data.frame(K1_vs_pred2))
+
+plot(K1_vs_pred2$pred2 ~ K1_vs_pred2$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
+```
+### Poisson Point Process Model - PCA 2
+```{r poisson point process model}
+PPM2 <- ppm(ppp_km ~ pca2_im_km*pca2_im_km)
+
+for (pc2 in seq(-3.5, 4, by = 0.5)) {
+  plot(effectfun(PPM1, "pca1_im_km", pca2_im_km = pc2, se.fit=TRUE), main=NULL, 
+       las=1, legendargs=list(cex=0.8, xpd=TRUE, inset=c(1.01, 0) ))
+}
+
+for (pc1 in seq(-2, 4.5, by = 0.5)) {
+  plot(effectfun(PPM1, "pca2_im_km", pca1_im_km = pc1, se.fit=TRUE), main=NULL, 
+       las=1, legendargs=list(cex=0.8, xpd=TRUE, inset=c(1.01, 0) ))
+}
+
+PPM2_drop <- quad.ppm(PPM2, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM2_corrected <- ppm(PPM2_drop ~ pca2_im_km) 
+plot(effectfun(PPM2_corrected, "pca2_im_km", se.fit=TRUE), main= "Poisson Point Process Model", 
+     las=1)
+
+PPM2_corrected
+
+PPM_reg <- ppm(ppp_km ~ 1)
+
+anova(PPM2, PPM_reg, test = "LRT")
+```
+
+## Covariate Adjusted - PCA 3
+```{r computing rho3}
+rho3 <- rhohat(ppp_km, pca3_im_km, method = "ratio", sigma = sigma_value)
+plot(rho3, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA3 was the sole driving process}
+pred3 <- predict(rho3)
+plot(pred3, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+```{r compare output of predicted to observed}
+K1_vs_pred3 <- pairs(K1, pred3, plot = FALSE)
+
+summary(as.data.frame(K1_vs_pred3))
+
+plot(K1_vs_pred3$pred3 ~ K1_vs_pred3$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
+```
+### Poisson Point Process Model - PCA 3
+```{r poisson point process model}
+PPM3 <- ppm(ppp_km ~ pca3_im_km)
+
+PPM3_drop <- quad.ppm(PPM3, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM3_corrected <- ppm(PPM3_drop ~ pca3_im_km) 
+plot(effectfun(PPM3_corrected, "pca3_im_km", se.fit=TRUE), main= "Poisson Point Process Model", 
+     las=1)
+
+PPM3_corrected
+
+PPM_reg <- ppm(ppp_km ~ 1)
+
+anova(PPM3, PPM_reg, test = "LRT")
+```
+
+## Covariate Adjusted - PCA 4
+```{r computing rho4}
+rho4 <- rhohat(ppp_km, pca4_im_km, method = "ratio", sigma = sigma_value)
+plot(rho4, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA4 was the sole driving process}
+pred4 <- predict(rho4)
+plot(pred4, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+```{r compare output of predicted to observed}
+K1_vs_pred4 <- pairs(K1, pred4, plot = FALSE)
+
+summary(as.data.frame(K1_vs_pred4))
+
+plot(K1_vs_pred4$pred4 ~ K1_vs_pred4$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
+```
+### Poisson Point Process Model - PCA 4
+```{r poisson point process model}
+PPM4 <- ppm(ppp_km ~ pca4_im_km)
+
+PPM4_drop <- quad.ppm(PPM4, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM4_corrected <- ppm(PPM4_drop ~ pca4_im_km) 
+plot(effectfun(PPM4_corrected, "pca4_im_km", se.fit=TRUE), main= "Poisson Point Process Model", 
+     las=1)
+
+PPM4_corrected
+
+PPM_reg <- ppm(ppp_km ~ 1)
+
+anova(PPM4, PPM_reg, test = "LRT")
+```
+## Covariate Adjusted - PCA 5
+```{r computing rho5}
+rho5 <- rhohat(ppp_km, pca5_im_km, method = "ratio", sigma = sigma_value)
+plot(rho3, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA5 was the sole driving process}
+pred5 <- predict(rho5)
+plot(pred5, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+```{r compare output of predicted to observed}
+K1_vs_pred5 <- pairs(K1, pred5, plot = FALSE)
+
+summary(as.data.frame(K1_vs_pred5))
+
+plot(K1_vs_pred5$pred5 ~ K1_vs_pred5$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
+```
+### Poisson Point Process Model - PCA 5
+```{r poisson point process model}
+PPM5 <- ppm(ppp_km ~ pca5_im_km)
+
+PPM5_drop <- quad.ppm(PPM5, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM5_corrected <- ppm(PPM5_drop ~ pca5_im_km) 
+plot(effectfun(PPM5_corrected, "pca5_im_km", se.fit=TRUE), main= "Poisson Point Process Model", 
+     las=1)
+
+PPM5_corrected
+
+PPM_reg <- ppm(ppp_km ~ 1)
+
+anova(PPM5, PPM_reg, test = "LRT")
+```
+
+
+
+## Covariate Adjusted - PCA1 + PCA2
+```{r prep PCA 1+2}
+band12 <- c(pca1, pca2)
+band12 <- mask(band12, bboxes)
+band12_im <- as.im.SpatRaster1(band12)
+band12_im_km <-rescale(band12_im, 1000, "km")
+```
+```{r computing rho}
+marks(ppp_km) <- NULL
+Window(ppp_km) <- bboxes_owin_km
+
+rho12 <- rhohat(ppp_km, band12_im_km, method = "ratio", sigma = sigma_value)
+plot(rho12, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA12 was the sole driving process}
+pred12 <- predict(rho12)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred12, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+```{r compare output of predicted to observed}
+K1_vs_pred12 <- pairs(K1, pred12, plot = FALSE)
+
+summary(as.data.frame(K1_vs_pred12))
+
+plot(K1_vs_pred12$pred12 ~ K1_vs_pred12$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
+```
+### Poisson Point Process Model - PCA 1 + 2
+```{r poisson point process model}
+PPM12 <- ppm(ppp_km ~ band12_im_km)
+
+PPM12_drop <- quad.ppm(PPM12, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM12_corrected <- ppm(PPM12_drop ~ band12_im_km) 
+plot(effectfun(PPM12_corrected, "band12_im_km", se.fit=TRUE), main= "Poisson Point Process Model for PCA1 and PCA2", 
+     las=1)
+
+PPM12_corrected
+
+anova(PPM12, PPM_reg, test = "LRT")
+```
+
+## Covariate Adjusted - PCA3 + PCA5
+```{r prep PCA 3+5}
+band35 <- c(pca3, pca5)
+band35 <- mask(band35, bboxes)
+band35_im <- as.im.SpatRaster1(band35)
+band35_im_km <-rescale(band35_im, 1000, "km")
+```
+```{r computing rho}
+marks(ppp_km) <- NULL
+Window(ppp_km) <- bboxes_owin_km
+
+rho35 <- rhohat(ppp_km, band35_im_km, method = "ratio", sigma = sigma_value)
+plot(rho35, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA35 was the sole driving process}
+pred35 <- predict(rho35)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred35, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+```{r compare output of predicted to observed}
+K1_vs_pred35 <- pairs(K1, pred35, plot = FALSE)
+
+summary(as.data.frame(K1_vs_pred35))
+
+plot(K1_vs_pred35$pred35 ~ K1_vs_pred35$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
+```
+### Poisson Point Process Model - PCA 3 + 5
+```{r poisson point process model}
+PPM35 <- ppm(ppp_km ~ band35_im_km)
+
+PPM35_drop <- quad.ppm(PPM35, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM35_corrected <- ppm(PPM35_drop ~ band35_im_km) 
+plot(effectfun(PPM35_corrected, "band35_im_km", se.fit=TRUE), main= "Poisson Point Process Model for PCA3 and PCA5", 
+     las=1)
+
+PPM35_corrected
+
+anova(PPM35, PPM_reg, test = "LRT")
+```
+
+
+## Covariate Adjusted - PCA3 + PCA4 + PCA5
+```{r prep PC345}
+band345 <- c(pca3,pca4,pca5)
+band345 <- mask(band345, bboxes)
+band345_im <- as.im.SpatRaster1(band345)
+band345_im_km <-rescale(band345_im, 1000, "km")
+```
+```{r computing rho}
+marks(ppp_km) <- NULL
+Window(ppp_km) <- bboxes_owin_km
+
+rho345 <- rhohat(ppp_km, band345_im_km, method = "ratio", sigma = sigma_value)
+plot(rho345, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA345 was the sole driving process}
+pred345 <- predict(rho345)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred345, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+```{r compare output of predicted to observed}
+K1_vs_pred345 <- pairs(K1, pred345, plot = FALSE)
+
+summary(as.data.frame(K1_vs_pred345))
+
+plot(K1_vs_pred345$pred345 ~ K1_vs_pred345$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
+```
+### Poisson Point Process Model - PCA 3 + 4 + 5
+```{r poisson point process model}
+PPM345 <- ppm(ppp_km ~ band345_im_km)
+
+PPM345_drop <- quad.ppm(PPM345, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM345_corrected <- ppm(PPM345_drop ~ band345_im_km) 
+plot(effectfun(PPM345_corrected, "band345_im_km", se.fit=TRUE), main= "Poisson Point Process Model for PCA3, PCA4, and PCA5", 
+     las=1)
+
+PPM345_corrected
+
+anova(PPM345, PPM_reg, test = "LRT")
+```
+
+## Covariate Adjusted - PCA2 + PCA3 + PCA4 + PCA5
+```{r prep PCA2345}
+band2345 <- c(pca2, pca3, pca4, pca5)
+band2345 <- mask(band2345, bboxes)
+band2345_im <- as.im.SpatRaster1(band2345)
+band2345_im_km <-rescale(band2345_im, 1000, "km")
+```
+```{r computing rho}
+marks(ppp_km) <- NULL
+Window(ppp_km) <- bboxes_owin_km
+
+rho2345 <- rhohat(ppp_km, band2345_im_km, method = "ratio", sigma = sigma_value)
+
+plot(rho2345, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA2345 was the sole driving process}
+pred2345 <- predict(rho2345)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred2345, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+```{r compare output of predicted to observed}
+K1_vs_pred2345 <- pairs(K1, pred2345, plot = FALSE)
+
+summary(as.data.frame(K1_vs_pred2345))
+
+plot(K1_vs_pred2345$pred2345 ~ K1_vs_pred2345$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
+```
+### Poisson Point Process Model - PCA 2 + 3 + 4 + 5
+```{r poisson point process model}
+PPM2345 <- ppm(ppp_km ~ band2345_im_km)
+
+PPM2345_drop <- quad.ppm(PPM2345, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM2345_corrected <- ppm(PPM2345_drop ~ band2345_im_km) 
+plot(effectfun(PPM2345_corrected, "band2345_im_km", se.fit=TRUE), main= "Poisson Point Process Model for PCA2, PCA3, PCA4, and PCA5", 
+     las=1)
+
+PPM2345_corrected
+
+anova(PPM2345, PPM_reg, test = "LRT")
+```
+
+## Covariate Adjusted - PCA1 + PCA2 + PCA3 + PCA4 + PCA5
+```{r prep PCA 12345}
+band12345 <- c(pca1_r, pca2, pca3, pca4, pca5)
+band12345 <- mask(band12345, bboxes)
+band12345_im <- as.im.SpatRaster1(band12345)
+band12345_im_km <-rescale(band12345_im, 1000, "km")
+```
+```{r computing rho}
+marks(ppp_km) <- NULL
+Window(ppp_km) <- bboxes_owin_km
+
+rho12345 <- rhohat(ppp_km, band12345_im_km, method = "ratio", sigma = sigma_value)
+
+plot(rho12345, las=1, main=NULL)
+```
+```{r generating map of predicted RTS density if PCA12345 was the sole driving process}
+pred12345 <- predict(rho12345)
+cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
+plot(pred12345, col=cl, las=1, main=NULL, gamma = 0.25)
+```
+```{r compare output of predicted to observed}
+K1_vs_pred12345 <- pairs(K1, pred12345, plot = FALSE)
+
+summary(as.data.frame(K1_vs_pred12345))
+
+plot(K1_vs_pred12345$pred12345 ~ K1_vs_pred12345$K1, pch=20,
+     xlab = "Observed intensity", 
+     ylab = "Predicted intensity", 
+     col = rgb(0,0,0,0.1),
+     xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
+```
+### Poisson Point Process Model - PCA 1 + 2 + 3 + 4 + 5
+```{r poisson point process model}
+PPM12345 <- ppm(ppp_km ~ band12345_im_km)
+
+PPM12345_drop <- quad.ppm(PPM12345, drop=TRUE) #this step will drop points within the quadrature scheme that had NA-values
+PPM12345_corrected <- ppm(PPM12345_drop ~ band12345_im_km) 
+plot(effectfun(PPM12345_corrected, "band12345_im_km", se.fit=TRUE), main= "Poisson Point Process Model for PCA2, PCA3, PCA4, and PCA5", 
+     las=1)
+
+PPM12345_corrected
+
+anova(PPM12345, PPM_reg, test = "LRT")
+```
+
+
+
