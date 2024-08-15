@@ -24,7 +24,7 @@ if (!all(st_is_valid(arts_sf))) {
 }
 ```
 
-## Simply Nitze and Intersect
+## Simply Nitze/Moceyunas and Intersect
 ```{r simplify overlap in nitze_sf}
 nitze_bboxes = nitze_sf |>
   st_remove_holes() |>
@@ -190,8 +190,8 @@ plot(K1, main='RTS density in bounding boxes', las=1)
 contour(K1, add=TRUE)
 ```
 
-## Covariate Adjusted - PCA 1
-```{r prep PCA 1}
+## Covariate Adjusted - Prepping Individual Rasters
+```{r prep PCA individual rasters}
 pca_r <- rast("pca.tif")
 print(pca_r)
 
@@ -199,7 +199,7 @@ print(pca_r)
 band_index <- 1
 
 pca1_r <- pca_r[[1]]
-pca1 <- crop(x = pca1_r, y = bboxes)
+pca1 <- mask(pca1_r, bboxes)
 plot(pca1)
 
 pca2 <- pca_r[[2]]
@@ -280,7 +280,8 @@ pca5_im_km <-rescale(pca5_im, 1000, "km")
 na_count <- sum(is.na(pca5_im_km))
 na_count
 ```
-```{r computing rho}
+## Covariate Adjusted - PCA 1
+```{r computing rho1}
 marks(ppp_km) <- NULL
 Window(ppp_km) <- bboxes_owin_km
 
@@ -335,11 +336,11 @@ anova(PPM1, PPM_reg, test = "LRT")
 
 ## Covariate Adjusted - PCA 2
 
-```{r computing rho}
+```{r computing rho2}
 rho2 <- rhohat(ppp_km, pca2_im_km, method = "ratio", sigma = sigma_value)
 plot(rho2, las=1, main=NULL)
 ```
-```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+```{r generating map of predicted RTS density if PCA2 was the sole driving process}
 pred2 <- predict(rho2)
 cl2   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
 plot(pred2, col=cl, las=1, main=NULL, gamma = 0.25)
@@ -356,7 +357,7 @@ plot(K1_vs_pred2$pred2 ~ K1_vs_pred2$K1, pch=20,
      xlim = c(0, 4), ylim = c(0, 4)) + abline(a=0, b = 1, col = "red")
 ```
 
-### Poisson Point Process Model - PCA 1
+### Poisson Point Process Model - PCA 2
 
 ```{r poisson point process model}
 PPM2 <- ppm(ppp_km ~ pca2_im_km*pca2_im_km)
@@ -389,11 +390,11 @@ anova(PPM2, PPM_reg, test = "LRT")
 
 ## Covariate Adjusted - PCA 3
 
-```{r computing rho}
+```{r computing rho3}
 rho3 <- rhohat(ppp_km, pca3_im_km, method = "ratio", sigma = sigma_value)
 plot(rho3, las=1, main=NULL)
 ```
-```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+```{r generating map of predicted RTS density if PCA3 was the sole driving process}
 pred3 <- predict(rho3)
 plot(pred3, col=cl, las=1, main=NULL, gamma = 0.25)
 ```
@@ -432,11 +433,11 @@ anova(PPM3, PPM_reg, test = "LRT")
 
 ## Covariate Adjusted - PCA 4
 
-```{r computing rho}
+```{r computing rho4}
 rho4 <- rhohat(ppp_km, pca4_im_km, method = "ratio", sigma = sigma_value)
 plot(rho4, las=1, main=NULL)
 ```
-```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+```{r generating map of predicted RTS density if PCA4 was the sole driving process}
 pred4 <- predict(rho4)
 plot(pred4, col=cl, las=1, main=NULL, gamma = 0.25)
 ```
@@ -474,11 +475,11 @@ anova(PPM4, PPM_reg, test = "LRT")
 ```
 ## Covariate Adjusted - PCA 5
 
-```{r computing rho}
+```{r computing rho5}
 rho5 <- rhohat(ppp_km, pca5_im_km, method = "ratio", sigma = sigma_value)
 plot(rho3, las=1, main=NULL)
 ```
-```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+```{r generating map of predicted RTS density if PCA5 was the sole driving process}
 pred5 <- predict(rho5)
 plot(pred5, col=cl, las=1, main=NULL, gamma = 0.25)
 ```
@@ -519,9 +520,7 @@ anova(PPM5, PPM_reg, test = "LRT")
 
 ## Covariate Adjusted - PCA1 + PCA2
 ```{r prep PCA 1+2}
-band1 <- subset(pca_r, 1)
-band2 <- subset(pca_r, 2)
-band12 <- c(band1, band2)
+band12 <- c(pca1, pca2)
 band12 <- mask(band12, bboxes)
 band12_im <- as.im.SpatRaster1(band12)
 band12_im_km <-rescale(band12_im, 1000, "km")
@@ -534,7 +533,7 @@ Window(ppp_km) <- bboxes_owin_km
 rho12 <- rhohat(ppp_km, band12_im_km, method = "ratio", sigma = sigma_value)
 plot(rho12, las=1, main=NULL)
 ```
-```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+```{r generating map of predicted RTS density if PCA12 was the sole driving process}
 pred12 <- predict(rho12)
 cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
 plot(pred12, col=cl, las=1, main=NULL, gamma = 0.25)
@@ -566,10 +565,8 @@ anova(PPM12, PPM_reg, test = "LRT")
 ```
 
 ## Covariate Adjusted - PCA3 + PCA5
-```{r prep PCA 1+2}
-band3 <- subset(pca_r, 3)
-band5 <- subset(pca_r, 5)
-band35 <- c(band3, band5)
+```{r prep PCA 3+5}
+band35 <- c(pca3, pca5)
 band35 <- mask(band35, bboxes)
 band35_im <- as.im.SpatRaster1(band35)
 band35_im_km <-rescale(band35_im, 1000, "km")
@@ -582,7 +579,7 @@ Window(ppp_km) <- bboxes_owin_km
 rho35 <- rhohat(ppp_km, band35_im_km, method = "ratio", sigma = sigma_value)
 plot(rho35, las=1, main=NULL)
 ```
-```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+```{r generating map of predicted RTS density if PCA35 was the sole driving process}
 pred35 <- predict(rho35)
 cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
 plot(pred35, col=cl, las=1, main=NULL, gamma = 0.25)
@@ -614,12 +611,9 @@ anova(PPM35, PPM_reg, test = "LRT")
 ```
 
 
-## Covariate Adjusted - PCA2 + PCA3 + PCA5
-```{r prep PCA 1+2}
-band3 <- subset(pca_r, 3)
-band4 <- subset(pca_r, 4)
-band5 <- subset(pca_r, 5)
-band345 <- c(band3, band5, band4)
+## Covariate Adjusted - PCA3 + PCA4 + PCA5
+```{r prep PC345}
+band345 <- c(pca3,pca4,pca5)
 band345 <- mask(band345, bboxes)
 band345_im <- as.im.SpatRaster1(band345)
 band345_im_km <-rescale(band345_im, 1000, "km")
@@ -632,7 +626,7 @@ Window(ppp_km) <- bboxes_owin_km
 rho345 <- rhohat(ppp_km, band345_im_km, method = "ratio", sigma = sigma_value)
 plot(rho345, las=1, main=NULL)
 ```
-```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+```{r generating map of predicted RTS density if PCA345 was the sole driving process}
 pred345 <- predict(rho345)
 cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
 plot(pred345, col=cl, las=1, main=NULL, gamma = 0.25)
@@ -666,7 +660,7 @@ anova(PPM345, PPM_reg, test = "LRT")
 
 
 ## Covariate Adjusted - PCA2 + PCA3 + PCA4 + PCA5
-```{r prep PCA 1+2}
+```{r prep PCA2345}
 band2345 <- c(pca2, pca3, pca4, pca5)
 band2345 <- mask(band2345, bboxes)
 band2345_im <- as.im.SpatRaster1(band2345)
@@ -681,7 +675,7 @@ rho2345 <- rhohat(ppp_km, band2345_im_km, method = "ratio", sigma = sigma_value)
 
 plot(rho2345, las=1, main=NULL)
 ```
-```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+```{r generating map of predicted RTS density if PCA2345 was the sole driving process}
 pred2345 <- predict(rho2345)
 cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
 plot(pred2345, col=cl, las=1, main=NULL, gamma = 0.25)
@@ -715,7 +709,7 @@ anova(PPM2345, PPM_reg, test = "LRT")
 
 
 ## Covariate Adjusted - PCA1 + PCA2 + PCA3 + PCA4 + PCA5
-```{r prep PCA 1+2}
+```{r prep PCA 12345}
 band12345 <- c(pca1_r, pca2, pca3, pca4, pca5)
 band12345 <- mask(band12345, bboxes)
 band12345_im <- as.im.SpatRaster1(band12345)
@@ -730,7 +724,7 @@ rho12345 <- rhohat(ppp_km, band12345_im_km, method = "ratio", sigma = sigma_valu
 
 plot(rho12345, las=1, main=NULL)
 ```
-```{r generating map of predicted RTS density if PCA1 was the sole driving process}
+```{r generating map of predicted RTS density if PCA12345 was the sole driving process}
 pred12345 <- predict(rho12345)
 cl   <- interp.colours(c("lightyellow", "orange" ,"red"), 100) # Create color scheme
 plot(pred12345, col=cl, las=1, main=NULL, gamma = 0.25)
